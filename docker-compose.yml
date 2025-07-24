@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   backend:
     build: ./backend
@@ -7,3 +5,14 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+  db:
+    image: postgres
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_DB=emails
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
