@@ -1,6 +1,6 @@
 from auth_utils import get_credentials, load_credentials
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+from googleapiclient.discovery import build # type: ignore
+from googleapiclient.errors import HttpError # type: ignore
 
 import base64
 

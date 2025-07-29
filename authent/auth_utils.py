@@ -1,9 +1,9 @@
 import os
 import json
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
+from google.auth.transport.requests import Request # pyright: ignore[reportMissingImports]
+from google.oauth2.credentials import Credentials # pyright: ignore[reportMissingImports]
+from google_auth_oauthlib.flow import InstalledAppFlow # pyright: ignore[reportMissingImports]
+from googleapiclient.discovery import build # pyright: ignore[reportMissingImports]
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 TOKEN_DIR = 'tokens'
