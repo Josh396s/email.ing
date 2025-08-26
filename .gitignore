@@ -4,4 +4,4 @@ __pycache__/
 *.pyd
 .env
 tokens/
-authent/credentials.json
+backend\authent\credentials.json
