@@ -14,3 +14,5 @@ fastapi
 uvicorn
 sqlalchemy
 psycopg2-binary
+python-jose>=3.0.0
+parse
