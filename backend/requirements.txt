@@ -6,12 +6,11 @@ google-auth
 oauth2client
 python-dotenv
 email-validator
-nltk
-spacy
-torch
 
 fastapi
+fastapi-authlib
 uvicorn
+jinja2
 sqlalchemy
 psycopg2-binary
 python-jose>=3.0.0
