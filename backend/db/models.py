@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Integer
+from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Integer, LargeBinary
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timezone
@@ -8,8 +8,13 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    email = Column(String, unique=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    full_name = Column(String)
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    
+    google_sub = Column(LargeBinary, unique=True, index=True)
+    encrypted_access_token = Column(LargeBinary, unique=True)
+    encrypted_refresh_token = Column(LargeBinary, unique=True)
 
     emails = relationship("Email", back_populates="users", cascade="all, delete-orphan")
 
@@ -32,7 +37,7 @@ class Email(Base):
 class Attachment(Base):
     __tablename__ = 'attachments'
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    email_id = Column(Integer, ForeignKey('emails.id'), nullable=False)
+    email_id = Column(String, ForeignKey('emails.id'), nullable=False)
     filename  = Column(String)
     filetype = Column(String)
     url = Column(String)
@@ -42,7 +47,7 @@ class Attachment(Base):
 class Followup(Base):
     __tablename__ = 'followups'
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    email_id = Column(Integer, ForeignKey('emails.id'), nullable=False)
+    email_id = Column(String, ForeignKey('emails.id'), nullable=False)
     remind_at = Column(DateTime)
 
     emails = relationship("Email", back_populates="followups")

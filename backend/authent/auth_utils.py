@@ -13,19 +13,6 @@ SCOPES = [
 ]
 TOKEN_DIR = 'tokens'
 
-# Function that runs OAuth process and saves user's info
-def get_credentials():
-    # Run OAuth flow
-    flow = InstalledAppFlow.from_client_secrets_file('authent/credentials.json', SCOPES)
-    creds = flow.run_local_server(port=8000, access_type='offline', prompt='consent')
-
-    # Use the access token to get the user's email
-    service = build('gmail', 'v1', credentials=creds)
-    user_info = service.users().getProfile(userId='me').execute()
-    user_email = user_info['emailAddress']
-
-    return creds, user_email
-
 # Function that checks for user's saved info
 def load_credentials(email):
     token_path = os.path.join(TOKEN_DIR, f'{email}.json')

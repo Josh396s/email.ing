@@ -1,0 +1,3 @@
+Pydantic in FastAPI : https://youtu.be/ID9b4diFZN8?si=Pv3_4413ucleHgUk
+Oauth2 in FastAPI: https://medium.com/@shrinit.poojary12/google-authentication-in-fastapi-using-oauth2-e47f13a019aa
+SQLAlchemy in PostgreSQL: https://coderpad.io/blog/development/sqlalchemy-with-postgresql/

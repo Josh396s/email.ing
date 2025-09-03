@@ -19,7 +19,7 @@ services:
     working_dir: /app
     env_file: .env
     command:
-      sh -c "python -m db.init_db && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+      sh -c "python -m db.database && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     
 
 volumes:

@@ -2,16 +2,22 @@ google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
 
+pydantic
+sqlalchemy
+
 google-auth
 oauth2client
 python-dotenv
 email-validator
 
-fastapi
-fastapi-authlib
+fastapi[all]
+authlib
 uvicorn
-jinja2
-sqlalchemy
 psycopg2-binary
-python-jose>=3.0.0
+python-decouple
+itsdangerous
 parse
+
+
+python-jose[cryptography]
+cryptography

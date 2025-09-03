@@ -1,39 +1,36 @@
-from fastapi import FastAPI, Depends, Request, HTTPException
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi import FastAPI, Depends, Request
+from fastapi.responses import RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
-
-from authent.auth_utils import SCOPES, get_credentials, load_credentials, save_credentials
 from starlette.responses import HTMLResponse
-from starlette.applications import Starlette
-from starlette.config import Config
+
 from authlib.integrations.starlette_client import OAuth
-from db.init_db import SessionLocal
+from db.database import get_db
 from db.models import User
+from db.schemas import UserInfo, UserEncrypt
+from sqlalchemy.orm import Session
+from authent.Encryption import encrypt_token, decrypt_token
 
-from jose import jwt
-import requests, os, json
-
-#REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+import os, json
+from datetime import datetime
 
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key="secret")
-
+app.add_middleware(SessionMiddleware, secret_key="!secret")
 
 oauth = OAuth()
 oauth.register(
     name='google',
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    server_metadata_url=os.environ.get('GOOGLE_METADATA_URL'),
     client_id=os.environ.get('GOOGLE_CLIENT_ID'),
     client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
     client_kwargs={
         'scope': 'openid email profile',
         'prompt': 'select_account',
-        'redirect_uri': 'http://localhost:8000/auth'
+        'redirect_uri': os.getenv("GOOGLE_REDIRECT_URI")
         }
 )
 
-@app.route('/')
-async def homepage(request):
+@app.get('/')
+async def homepage(request: Request):
     user = request.session.get('user')
     if user:
         data = json.dumps(user)
@@ -47,14 +44,56 @@ async def homepage(request):
 @app.get("/login")
 async def login(request: Request):
     redirect_uri=request.url_for('auth')
-    return await oauth.google.authorize_redirect(request, redirect_uri)
-    
+    return await oauth.google.authorize_redirect(request, redirect_uri, access_type='offline')
+
 @app.get("/auth")
-async def auth(request: Request):
+async def auth(request: Request, db: Session=Depends(get_db)):
     token = await oauth.google.authorize_access_token(request)
     user = token.get('userinfo')
     if user:
         request.session['user'] = user
+        request.session['access_token'] = token['access_token']
+        request.session['refresh_token'] = token.get('refresh_token')
+
+        # Check if user is in db, if not add them
+        user_email = request.session['user']['email']
+        entry = db.query(User).filter(User.email==user_email).first()
+        if not entry:
+            return RedirectResponse(url='/create_user')    
+        return RedirectResponse(url='/')
+            
+    
+@app.get("/create_user")
+async def create_user(request:Request, db: Session=Depends(get_db)):
+    user_info = {
+        'email' : request.session['user']['email'],
+        'full_name' : request.session['user']['name'],
+        'created_at' : datetime.now()
+    }
+    user_encrypt = {
+        'google_sub' : encrypt_token(request.session['user']['sub']),
+        'encrypted_access_token' : encrypt_token(request.session['access_token']),
+        'encrypted_refresh_token' : encrypt_token(request.session['refresh_token'])
+    }
+
+    # Validate info via pendatic schemas
+    user = UserInfo(**user_info) 
+    user_crypt = UserEncrypt(**user_encrypt)
+
+    # Create user entry
+    user = User(
+        email = user_info['email'],
+        full_name = user_info['full_name'],
+        created_at = user_info['created_at'],
+        google_sub = user_encrypt['google_sub'],
+        encrypted_access_token = user_encrypt['encrypted_access_token'],
+        encrypted_refresh_token = user_encrypt['encrypted_refresh_token']
+    )
+    
+    # Add user to db
+    db.add(user)
+    db.commit()
+
     return RedirectResponse(url='/')
 
 @app.get("/logout")
