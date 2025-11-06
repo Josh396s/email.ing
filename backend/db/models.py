@@ -22,7 +22,7 @@ class Email(Base):
     __tablename__ = 'emails'
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id  = Column(Integer, ForeignKey('users.id'), nullable=False)
-    email_id  = Column(String, nullable=False)
+    email_id  = Column(Integer, nullable=False)
     sender  = Column(String)
     subject = Column(String)
     received_at = Column(DateTime)
@@ -37,7 +37,7 @@ class Email(Base):
 class Attachment(Base):
     __tablename__ = 'attachments'
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    email_id = Column(String, ForeignKey('emails.id'), nullable=False)
+    email_id = Column(Integer, ForeignKey('emails.id'), nullable=False)
     filename  = Column(String)
     filetype = Column(String)
     url = Column(String)
@@ -47,7 +47,7 @@ class Attachment(Base):
 class Followup(Base):
     __tablename__ = 'followups'
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    email_id = Column(String, ForeignKey('emails.id'), nullable=False)
+    email_id = Column(Integer, ForeignKey('emails.id'), nullable=False)
     remind_at = Column(DateTime)
 
     emails = relationship("Email", back_populates="followups")
