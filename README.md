@@ -40,6 +40,14 @@ Going to try and create an app that makes email.ing much more efficient
 ### 11/05/25:
 
 - Implemented JWT tokens: encode, decode, and validation. Tested to ensure it fully worked
-- Updated authorization and user creation paths in main.py 
+- Updated authorization and user creation paths in main.py
 
 > Next Step: Start working on decryption and connecting secure tokens with Gmail API
+
+### 11/05/25:
+
+* Encryption/Decryption fully working
+* Full workflow works(Signup->Tokens->Email_fetch->DB_population)
+* Implemented DB version control using alembic
+
+> Next Step: Utilize Celery/Redis to handle large volumes of emails
