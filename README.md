@@ -44,7 +44,7 @@ Going to try and create an app that makes email.ing much more efficient
 
 > Next Step: Start working on decryption and connecting secure tokens with Gmail API
 
-### 11/05/25:
+### 2/10/26:
 
 * Encryption/Decryption fully working
 * Full workflow works(Signup->Tokens->Email_fetch->DB_population)
