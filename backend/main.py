@@ -12,11 +12,12 @@ from db.models import User
 from db.schemas import UserInfo, UserEncrypt
 from sqlalchemy.orm import Session
 
-# NEW IMPORTS
 from authent.encryption import encrypt_token, decrypt_token
 from authent.token_utils import create_access_token, get_current_user
 
-import os, json
+from services.email_service import fetch_and_store_emails
+
+from config import settings
 from datetime import datetime, timezone
 
 app = FastAPI()
@@ -32,17 +33,44 @@ app.add_middleware(
     allow_headers=["*", "Authorization"],
 )
 
+######################################## TEST ##################################################
+@app.post("/test/fetch_emails")
+async def test_fetch_emails(
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """
+    TEMPORARY: Tests the full Day 2 flow: JWT -> Decrypt Tokens -> Gmail API -> DB Storage.
+    """
+    try:
+        # Call the core service function
+        fetch_and_store_emails(db, current_user)
+        
+        return {
+            "message": "SUCCESS: Email fetching and storing completed.",
+            "user": current_user.email,
+            "status": "Check your database for new 'emails' entries."
+        }
+    except Exception as e:
+        # This will catch errors in decryption, token refresh, or Gmail API calls
+        return HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Email fetching failed: {str(e)}"
+        )
+######################################## TEST ##################################################
+
+
 oauth = OAuth()
 oauth.register(
     name='google',
-    server_metadata_url=os.environ.get('GOOGLE_METADATA_URL'),
-    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
-    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    server_metadata_url=settings.GOOGLE_METADATA_URL,
+    client_id=settings.GOOGLE_CLIENT_ID,
+    client_secret=settings.GOOGLE_CLIENT_SECRET,
     client_kwargs={
-        'scope': 'openid email profile',
+        'scope': settings.SCOPES,
         'prompt': 'select_account',
-        'redirect_uri': os.getenv("GOOGLE_REDIRECT_URI")
-        }
+        'redirect_uri': settings.GOOGLE_REDIRECT_URI
+    }
 )
 
 @app.get('/')
@@ -67,73 +95,56 @@ async def login(request: Request):
     return await oauth.google.authorize_redirect(request, redirect_uri, access_type='offline')
 
 @app.get("/auth")
-async def auth(request: Request, db: Session=Depends(get_db)):
-    token = await oauth.google.authorize_access_token(request)
+async def auth(request: Request, db: Session = Depends(get_db)):
+    """
+    Authentication route. Handles Google callback, 
+    user creation/update, and JWT issuance.
+    """
+    try:
+        token = await oauth.google.authorize_access_token(request)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Google auth failed: {str(e)}")
+        
     user_info = token.get('userinfo')
-    
-    if user_info:
-        google_access_token = token['access_token']
-        google_refresh_token = token.get('refresh_token')
-        google_sub = user_info['sub']
-        user_email = user_info['email']
-        user_name = user_info.get('name', '')
+    if not user_info:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No user info from Google.")
 
-        entry = db.query(User).filter(User.email==user_email).first()
-        
-        # If user is new, redirect to creation route
-        if not entry:
-            refresh_param = f"&refresh={google_refresh_token}" if google_refresh_token else ""
-            return RedirectResponse(url=f'/create_user?email={user_email}&name={user_name}&sub={google_sub}&access={google_access_token}{refresh_param}', status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+    google_access_token = token.get('access_token')
+    google_refresh_token = token.get('refresh_token')  # Only present on first login or if prompt=consent
+    google_sub = user_info.get('sub')
+    user_email = user_info.get('email')
+    user_name = user_info.get('name', '')
 
-        # User exists: Update tokens and issue JWT
-        
-        # 1. Update encrypted tokens in DB
-        entry.encrypted_access_token = encrypt_token(google_access_token)
+    # Check if user exists
+    user = db.query(User).filter(User.email == user_email).first()
+
+    if not user:
+        # Create New User
+        user = User(
+            email=user_email,
+            full_name=user_name,
+            created_at=datetime.now(timezone.utc),
+            google_sub=encrypt_token(google_sub),
+            encrypted_access_token=encrypt_token(google_access_token),
+            encrypted_refresh_token=encrypt_token(google_refresh_token) if google_refresh_token else None
+        )
+        db.add(user)
+    else:
+        # Update Existing User
+        user.encrypted_access_token = encrypt_token(google_access_token)
+        # Only update refresh token if a new one is provided
         if google_refresh_token:
-            entry.encrypted_refresh_token = encrypt_token(google_refresh_token)
-        db.commit()
-        
-        # 2. Issue JWT
-        access_token_jwt = create_access_token(data={"user_id": entry.id})
-        
-        return JSONResponse(content={
-            "message": "Login successful",
-            "access_token": access_token_jwt,
-            "token_type": "bearer",
-            "user_id": entry.id
-        })
+            user.encrypted_refresh_token = encrypt_token(google_refresh_token)
     
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google authentication failed.")
-    
-@app.get("/create_user")
-async def create_user(request:Request, email: str, name: str, sub: str, access: str, refresh: str | None = None, db: Session=Depends(get_db)):
-    # Encrypt sensitive tokens
-    user_encrypt = {
-        'google_sub' : encrypt_token(sub),
-        'encrypted_access_token' : encrypt_token(access),
-        'encrypted_refresh_token' : encrypt_token(refresh) if refresh else None
-    }
-
-    # Create user entry
-    user = User(
-        email = email,
-        full_name = name,
-        created_at = datetime.now(timezone.utc),
-        google_sub = user_encrypt['google_sub'],
-        encrypted_access_token = user_encrypt['encrypted_access_token'],
-        encrypted_refresh_token = user_encrypt['encrypted_refresh_token']
-    )
-    
-    # Add user to db
-    db.add(user)
     db.commit()
     db.refresh(user)
 
-    # 4. Issue JWT upon creation
+    # Issue secure application JWT
     access_token_jwt = create_access_token(data={"user_id": user.id})
-
+    
+    # Return directly to the client (Chrome Extension or Frontend)
     return JSONResponse(content={
-        "message": "User created and logged in successful",
+        "message": "Authentication successful",
         "access_token": access_token_jwt,
         "token_type": "bearer",
         "user_id": user.id

@@ -22,13 +22,16 @@ class Email(Base):
     __tablename__ = 'emails'
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id  = Column(Integer, ForeignKey('users.id'), nullable=False)
-    email_id  = Column(Integer, nullable=False)
+    email_id  = Column(String, nullable=False)
+    thread_id = Column(String, nullable=False, index=True) 
+    
     sender  = Column(String)
     subject = Column(String)
     received_at = Column(DateTime)
     category = Column(String)
     urgency = Column(String)
     is_deleted = Column(Boolean, default=False)
+    body_text = Column(LargeBinary) 
 
     users = relationship("User", back_populates="emails")
     attachments = relationship("Attachment", back_populates="emails", cascade="all, delete-orphan")

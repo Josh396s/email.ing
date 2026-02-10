@@ -1,10 +1,9 @@
 from cryptography.fernet import Fernet
-
-import os
+from config import settings
 
 # Configuration
-JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
-ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY')
+JWT_SECRET_KEY = settings.JWT_SECRET_KEY
+ENCRYPTION_KEY = settings.ENCRYPTION_KEY
 ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRATION = 60 * 24 * 7 # One week in minutes
 

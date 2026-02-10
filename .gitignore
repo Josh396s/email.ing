@@ -1,7 +1,19 @@
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+venv/
 .env
-tokens/
-backend/authent/credentials.json
+
+# Docker
+.dockerignore
+
+# Database
+postgres_data/
+
+# Alembic
+backend/migrations/versions/*.pyc
+
+# OS
+.DS_Store
+Thumbs.db

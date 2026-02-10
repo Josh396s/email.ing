@@ -1,3 +1,5 @@
+# docker-compose.yml
+
 services:
   db:
     image: postgres:16
@@ -6,6 +8,13 @@ services:
       - "5431:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    
+    healthcheck:
+      # Use -d to specify "mydatabase" from your .env
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build:
@@ -15,12 +24,12 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy 
     working_dir: /app
     env_file: .env
+    # This command will now only run once the DB is healthy
     command:
-      sh -c "python -m db.database && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
-    
-
+      sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
 volumes:
   postgres_data:
