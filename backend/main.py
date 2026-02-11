@@ -17,6 +17,8 @@ from authent.token_utils import create_access_token, get_current_user
 
 from services.email_service import fetch_and_store_emails
 
+from tasks import sync_user_emails
+
 from config import settings
 from datetime import datetime, timezone
 
@@ -149,6 +151,12 @@ async def auth(request: Request, db: Session = Depends(get_db)):
         "token_type": "bearer",
         "user_id": user.id
     })
+
+@app.post("/sync")
+async def trigger_sync(current_user: User = Depends(get_current_user)):
+    # Sends task to Redis and returns immediately
+    task = sync_user_emails.delay(current_user.id)
+    return {"message": "Sync started", "task_id": task.id}
 
 @app.get("/logout")
 async def logout(request: Request):

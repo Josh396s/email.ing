@@ -22,6 +22,8 @@ python-dateutil
 parse
 beautifulsoup4
 
+celery
+redis
 
 python-jose[cryptography]
 cryptography

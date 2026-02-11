@@ -16,6 +16,11 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+      
   backend:
     build:
       context: ./backend
@@ -25,11 +30,27 @@ services:
       - "8000:8000"
     depends_on:
       db:
-        condition: service_healthy 
+        condition: service_healthy
+      redis:
+        condition: service_started 
     working_dir: /app
     env_file: .env
     # This command will now only run once the DB is healthy
     command:
       sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+
+  worker:
+    build:
+      context: ./backend
+    volumes:
+      - ./backend:/app
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: celery -A tasks.celery_app worker --loglevel=info
+
 volumes:
   postgres_data:
