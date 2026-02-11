@@ -51,3 +51,9 @@ Going to try and create an app that makes email.ing much more efficient
 * Implemented DB version control using alembic
 
 > Next Step: Utilize Celery/Redis to handle large volumes of emails
+
+### 2/11/26:
+
+* Implented Celery/Redis to handle large volumes of emails via /sync function
+
+> Next Step: Start looking into the implementation of classifying emails and their summarization
