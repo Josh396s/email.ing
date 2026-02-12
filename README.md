@@ -57,3 +57,9 @@ Going to try and create an app that makes email.ing much more efficient
 * Implented Celery/Redis to handle large volumes of emails via /sync function
 
 > Next Step: Start looking into the implementation of classifying emails and their summarization
+
+### 2/12/26:
+
+* Utilized Gemini 2.5 to summarize and categorize emails
+
+> Next Step: Refine how summarization works and what categories will be used
