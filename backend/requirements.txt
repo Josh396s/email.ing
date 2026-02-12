@@ -27,3 +27,5 @@ redis
 
 python-jose[cryptography]
 cryptography
+
+google-genai

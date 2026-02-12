@@ -29,7 +29,9 @@ class Email(Base):
     subject = Column(String)
     received_at = Column(DateTime)
     category = Column(String)
+    summary = Column(String)
     urgency = Column(String)
+    is_processed = Column(Boolean, default=False, index=True)
     is_deleted = Column(Boolean, default=False)
     body_text = Column(LargeBinary) 
 

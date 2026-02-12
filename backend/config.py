@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     GOOGLE_METADATA_URL: str = "https://accounts.google.com/.well-known/openid-configuration"
     SCOPES: str
 
+    # Gemini API Key
+    GEMINI_API_KEY: str 
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
