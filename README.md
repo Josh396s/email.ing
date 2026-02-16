@@ -63,3 +63,12 @@ Going to try and create an app that makes email.ing much more efficient
 * Utilized Gemini 2.5 to summarize and categorize emails
 
 > Next Step: Refine how summarization works and what categories will be used
+
+### 2/15/26:
+
+* Implented a simple front-end using Next.js, React, and Typescrit
+* Created a login page that registers user
+* Created home page that displays user's emails as well as AI insights
+* Users can logout of session
+
+> Next Step: Display actual email content when user clicks on it. Update DB when user deletes an email. Improve UI
