@@ -17,13 +17,15 @@ celery_app = Celery(
 
 @celery_app.task(name="sync_user_emails")
 def sync_user_emails(user_id: int):
+    """
+    Update DB with user's emails and AI content
+    """
     db = Session()
     try:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             return "User not found"
         
-        # Run the email fetching and storing logic for the user
         fetch_and_store_emails(db, user)
         process_emails_with_ai.delay(user_id)
         return f"Successfully synced emails for user {user_id}"
@@ -38,27 +40,24 @@ def sync_user_emails(user_id: int):
     max_retries=5
 )
 def process_emails_with_ai(self, user_id: int):
+    """
+    Fetch emails and generate AI content
+    """
     db = Session()
     try:
-        # Grab the last 10 unprocessed emails
+        # Fetch 5-10 records at a time
         records = db.query(Email).filter(
             Email.user_id == user_id, 
             Email.is_processed == False
         ).limit(10).all()
 
         if not records:
-            return "All caught up!"
+            return "Inbox analyzed."
 
-        # Format for AI
-        batch_input = [
-            {"id": r.id, "subject": r.subject, "sender": r.sender} 
-            for r in records
-        ]
+        # Pass the whole records list to the batch function
+        results = classify_and_summarize_batch(records)
 
-        # Get Batch Results
-        results = classify_and_summarize_batch(batch_input)
-
-        # Map results back to DB records
+        # Update the DB with the AI's "Deep" insights
         results_map = {res['id']: res for res in results}
         for r in records:
             if r.id in results_map:
@@ -69,13 +68,7 @@ def process_emails_with_ai(self, user_id: int):
                 r.is_processed = True
         
         db.commit()
-        
-        # If there are more emails, queue another batch
-        has_more = db.query(Email).filter(Email.user_id == user_id, Email.is_processed == False).first()
-        if has_more:
-            process_emails_with_ai.delay(user_id)
-
-        return f"Batch processed {len(records)} emails."
+        return f"Deep analysis complete for {len(records)} emails."
     except Exception as e:
         db.rollback()
         raise e

@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 venv/
 .env
+.env.local
 
 # Docker
 .dockerignore
@@ -17,3 +18,7 @@ backend/migrations/versions/*.pyc
 # OS
 .DS_Store
 Thumbs.db
+
+# Frontend
+node_modules/
+.next/

@@ -5,11 +5,12 @@ from googleapiclient.discovery import build
 from sqlalchemy.orm import Session
 from db.models import User
 from .encryption import decrypt_token, encrypt_token
+from fastapi import HTTPException
 
 def get_gmail_service(db: Session, user: User):
     """
     Retrieves, decrypts, and possibly refreshes the user's Google tokens,
-    then returns an initialized Gmail API service object.
+    then returns an initialized Gmail API service object
     """
     
     # Decrypt the tokens stored in the database
@@ -31,14 +32,22 @@ def get_gmail_service(db: Session, user: User):
     )
 
     # Check if token is expired and needs refreshing
-    if creds.expired and creds.refresh_token:
-        # Use the Request object from google.auth.transport.requests to initiate the refresh
-        creds.refresh(Request())
-        
-        # Update the DB with the new access token after refresh
-        user.encrypted_access_token = encrypt_token(creds.token)
-        db.commit()
-    
-    # Initialize and return the Gmail API service
-    service = build("gmail", "v1", credentials=creds)
-    return service
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            try:
+                # Force a refresh via a Request object
+                creds.refresh(Request())
+                
+                # Update DB
+                user.encrypted_access_token = encrypt_token(creds.token)
+                db.commit()
+                print(f"Successfully refreshed token for user {user.id}")
+            except Exception as e:
+                print(f"Failed to refresh token: {e}")
+                # If refresh fails, we likely need a full re-auth
+                raise HTTPException(status_code=401, detail="Refresh token expired or revoked")
+        else:
+            # If we get here, we don't even HAVE a refresh token
+            raise HTTPException(status_code=401, detail="No valid refresh token found. Please re-login.")
+
+    return build("gmail", "v1", credentials=creds)

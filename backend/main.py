@@ -1,21 +1,17 @@
-from fastapi import FastAPI, Depends, Request, HTTPException, status
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi import FastAPI, Depends, Request, Response, HTTPException, Cookie, status
+from fastapi.responses import RedirectResponse
 
 from fastapi.middleware.cors import CORSMiddleware
 
 from authlib.integrations.starlette_client import OAuth
-from starlette.responses import HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from db.database import get_db
-from db.models import User
-from db.schemas import UserInfo, UserEncrypt
+from db.models import User, Email
 from sqlalchemy.orm import Session
 
-from authent.encryption import encrypt_token, decrypt_token
-from authent.token_utils import create_access_token, get_current_user
-
-from services.email_service import fetch_and_store_emails
+from authent.encryption import encrypt_token
+from authent.token_utils import create_access_token, decode_access_token, get_current_user
 
 from tasks import sync_user_emails
 
@@ -25,42 +21,14 @@ from datetime import datetime, timezone
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="!secret")
 
-# Allow the Chrome Extension to connect
+# Allow your local Next.js dev server to talk to the API
 app.add_middleware(
     CORSMiddleware,
-    # This regex allows local development (http://localhost:8000) and any chrome-extension origin
-    allow_origin_regex="^https?:\/\/localhost.*|chrome-extension:\/\/.*",
+    allow_origins=["http://localhost:3000"], # Your Next.js address
     allow_credentials=True,
-    allow_methods=["*"], 
-    allow_headers=["*", "Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-
-######################################## TEST ##################################################
-@app.post("/test/fetch_emails")
-async def test_fetch_emails(
-    current_user: User = Depends(get_current_user), 
-    db: Session = Depends(get_db)
-):
-    """
-    TEMPORARY: Tests the full Day 2 flow: JWT -> Decrypt Tokens -> Gmail API -> DB Storage.
-    """
-    try:
-        # Call the core service function
-        fetch_and_store_emails(db, current_user)
-        
-        return {
-            "message": "SUCCESS: Email fetching and storing completed.",
-            "user": current_user.email,
-            "status": "Check your database for new 'emails' entries."
-        }
-    except Exception as e:
-        # This will catch errors in decryption, token refresh, or Gmail API calls
-        return HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Email fetching failed: {str(e)}"
-        )
-######################################## TEST ##################################################
-
 
 oauth = OAuth()
 oauth.register(
@@ -75,44 +43,31 @@ oauth.register(
     }
 )
 
-@app.get('/')
-async def homepage(request: Request):
-    return HTMLResponse('Welcome to Email.ing. <a href="/login">login</a> or <a href="/docs">View API Docs</a>')
-
-
-######################################## TEST ##################################################
-@app.get("/test_protected")
-async def test_protected_route(current_user: User = Depends(get_current_user)):
-    """
-    A simple route that requires a valid JWT in the Authorization header.
-    """
-    # This shows the user object retrieved securely from the DB using the JWT's payload
-    return {"message": f"Hello, {current_user.full_name}. This is a protected route! Your ID is {current_user.id}."}
-
-######################################## TEST ##################################################
-
 @app.get("/login")
 async def login(request: Request):
+    """
+    Initiate google Oauth process
+    """
     redirect_uri=request.url_for('auth')
     return await oauth.google.authorize_redirect(request, redirect_uri, access_type='offline')
 
 @app.get("/auth")
 async def auth(request: Request, db: Session = Depends(get_db)):
     """
-    Authentication route. Handles Google callback, 
-    user creation/update, and JWT issuance.
+    Authentication route. Handles Google callback, user creation/update, and JWT issuance
     """
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Google auth failed: {str(e)}")
-        
+    
+    # Get user info
     user_info = token.get('userinfo')
     if not user_info:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No user info from Google.")
 
     google_access_token = token.get('access_token')
-    google_refresh_token = token.get('refresh_token')  # Only present on first login or if prompt=consent
+    google_refresh_token = token.get('refresh_token')
     google_sub = user_info.get('sub')
     user_email = user_info.get('email')
     user_name = user_info.get('name', '')
@@ -144,21 +99,64 @@ async def auth(request: Request, db: Session = Depends(get_db)):
     # Issue secure application JWT
     access_token_jwt = create_access_token(data={"user_id": user.id})
     
-    # Return directly to the client (Chrome Extension or Frontend)
-    return JSONResponse(content={
-        "message": "Authentication successful",
-        "access_token": access_token_jwt,
-        "token_type": "bearer",
-        "user_id": user.id
-    })
+    # Redirect user back to main page
+    redirect = RedirectResponse(url='http://localhost:3000')
+    
+    # Inclulde JWT token in cookies
+    redirect.set_cookie(
+        key="user_token", 
+        value=access_token_jwt, 
+        httponly=True,
+        path="/",
+        samesite="lax", # Important for cross-port local dev
+        secure = True
+    )
+    
+    return redirect
+
+@app.get("/auth/status")
+async def get_auth_status(request: Request):
+    """
+    Authenticate user by decoding token
+    """
+    token = request.cookies.get("user_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = decode_access_token(token)
+        return {"authenticated": True, "user_id": payload.get("user_id")}
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid session")
 
 @app.post("/sync")
 async def trigger_sync(current_user: User = Depends(get_current_user)):
-    # Sends task to Redis and returns immediately
+    """
+    Fetches new emails and generates AI content
+    """
+    # Sends Redis task
     task = sync_user_emails.delay(current_user.id)
     return {"message": "Sync started", "task_id": task.id}
 
+@app.get("/emails")
+def get_emails(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    Gets user's recent emails from DB
+    """
+    user_emails = db.query(Email)\
+        .filter(Email.user_id == current_user.id)\
+        .order_by(Email.id.desc())\
+        .all()
+    
+    return user_emails
+
 @app.get("/logout")
-async def logout(request: Request):
-    request.session.pop('user', None)
-    return RedirectResponse(url='/')
+async def logout(response: Response):
+    """
+    Logs user out of session
+    """
+    response.delete_cookie(
+        key="user_token",
+        path="/",
+        samesite="lax",
+    )
+    return {"message": "Successfully logged out"}

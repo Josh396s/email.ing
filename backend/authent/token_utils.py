@@ -1,11 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from jose import jwt, JWTError
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Cookie, Request
 from fastapi.security import OAuth2PasswordBearer
 
-# Import security constants from your existing file
-from .encryption import JWT_SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRATION 
+from config import settings
 from db.database import get_db
 from db.models import User
 from sqlalchemy.orm import Session
@@ -16,20 +15,20 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 # JWT Token Creation
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """
-    Generates a new JWT access token.
-    The payload includes the user's ID for identification and a timestamp for expiry.
+    Generates a new JWT access token
+    The payload includes the user's ID for identification and a timestamp for expiration
     """
     to_encode = data.copy()
     
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRATION) 
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRATION_MINUTES) 
         
     to_encode.update({"exp": expire, "sub": "access"})
     
     # Encode and sign the token
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.ALGORITHM)
     
     return encoded_jwt
 
@@ -41,7 +40,7 @@ def decode_access_token(token: str) -> dict[str, Any]:
     try:
         # Decode and verify the signature and expiry
         payload = jwt.decode(
-            token, JWT_SECRET_KEY, algorithms=[ALGORITHM]
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         # Ensure the token is intended for access
         if payload.get("sub") != "access":
@@ -50,27 +49,22 @@ def decode_access_token(token: str) -> dict[str, Any]:
         return payload
         
     except JWTError:
-        # Raise an exception that will be caught by the FastAPI dependency handler
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        HTTPException(status_code=401, detail="Could not validate credentials")
 
 # Dependency to retrieve the current user from the token
-def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
-    """
-    Retrieves the User object corresponding to the valid JWT in the Authorization header.
-    """
-    payload = decode_access_token(token)
-    user_id: int = payload.get("user_id")
+def get_current_user(request: Request, db: Session = Depends(get_db)):
+    # Get JWT token
+    token = request.cookies.get("user_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user_id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload.")
-        
-    user = db.query(User).filter(User.id == user_id).first()
-    
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found.")
-        
-    return user
+    # Verify the user, else return an error
+    try:
+        payload = decode_access_token(token)
+        user_id = payload.get("user_id")
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")

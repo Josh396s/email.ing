@@ -6,14 +6,14 @@ class Settings(BaseSettings):
     DB_URL: str 
     JWT_SECRET_KEY: str 
     ENCRYPTION_KEY: str 
-    ALGORITHM: str = "HS256"
+    ALGORITHM: str
     ACCESS_TOKEN_EXPIRATION_MINUTES: int = 60 * 24 * 7
     
     # Google OAuth
     GOOGLE_CLIENT_ID: str 
     GOOGLE_CLIENT_SECRET: str 
     GOOGLE_REDIRECT_URI: str 
-    GOOGLE_METADATA_URL: str = "https://accounts.google.com/.well-known/openid-configuration"
+    GOOGLE_METADATA_URL: str
     SCOPES: str
 
     # Gemini API Key
