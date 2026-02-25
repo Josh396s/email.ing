@@ -23,9 +23,10 @@ class Email(BaseModel):
 
 class Attachment(BaseModel):
     email_id : int | None
-    filename : str | None
-    filetype : str | None
-    url : str | None
+    google_attachment_id : str | None
+    filename : str
+    mime_type : str | None
+    size : int | None
 
 class Followup(BaseModel):
     email_id : str

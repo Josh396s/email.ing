@@ -3,41 +3,50 @@ from google.genai import types
 from authent.encryption import decrypt_token
 import json
 from config import settings
+from services.privacy import mask_content, deanonymize_text
 
+# Initialize the Gemini Client
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 def prepare_email_for_ai(email_record):
     """
-    Decrypts and cleans the email body for the LLM prompt
+    Decrypts the email body, masks PII, and prepares it for AI processing
     """
     try:
         if not email_record.body_text:
-            return "No content."
+            return "No content.", {}
             
-        # Decrypt and decode
-        body = decrypt_token(email_record.body_text).decode('utf-8')
+        body = decrypt_token(email_record.body_text)
+        masked_body, pii_map = mask_content(body)
         
-        # Limit to 2500 chars for resource purposes
-        return body[:2500].strip() 
-    except:
-        return "[Content Error]"
+        # Truncate after masking to keep placeholders intact
+        return masked_body[:2500].strip(), pii_map
+    except Exception as e:
+        return "[Content Error]", {}
 
 def classify_and_summarize_batch(email_records: list):
     """
-    Prompt LLM for categorization and summarization
+    Sends a batch of masked emails to Gemini with safety settings enabled.
     """
-    # Create list of emails for processing
     email_blocks = []
+    pii_vault = {} 
+
+    # Prepare each email for the prompt
     for e in email_records:
-        content = prepare_email_for_ai(e)
+        content, pii_map = prepare_email_for_ai(e)
+        pii_vault[e.id] = pii_map
+        
         email_blocks.append(
             f"ID: {e.id}\nSender: {e.sender}\nSubject: {e.subject}\nContent: {content}\n---"
         )
-    
+
     prompt = f"""
     Analyze these {len(email_records)} emails. 
-    Use the 'Content' field to provide a deep, action-oriented summary.
     
+    CRITICAL: If an email contains harmful or dangerous content, 
+    DO NOT summarize it. Instead, set the category to "Safety Warning" 
+    and the summary to "Content blocked due to safety concerns."
+
     EMAILS:
     {chr(10).join(email_blocks)}
 
@@ -47,19 +56,39 @@ def classify_and_summarize_batch(email_records: list):
             "id": <id>,
             "category": "Work/Personal/Newsletter/Transactional",
             "urgency": "1-5",
-            "summary": "Focus on general content & next step. Limit summary to 25 words"
+            "summary": "25-word action-oriented summary."
         }}
     ]
     """
-    
-    # Return LLM output
+
+    # Safety settings to block harmful content
+    safety_settings = [
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"},
+    ]
+
+    # Call the Gemini API
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type='application/json')
+            config=types.GenerateContentConfig(
+                response_mime_type='application/json',
+                safety_settings=safety_settings
+            )
         )
-        return json.loads(response.text)
+
+        results = json.loads(response.text)
+        
+        # Unmask any masked PII in the summaries before returning 
+        for res in results:
+            email_id = res.get("id")
+            if email_id in pii_vault:
+                res["summary"] = deanonymize_text(res["summary"], pii_vault[email_id])
+        return results
+    
     except Exception as e:
         print(f"Batch AI Error: {e}")
-        raise e
+        return [{"id": e.id, "summary": "Error: Batch processing failed.", "category": "Error"} for e in email_records]

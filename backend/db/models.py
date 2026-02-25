@@ -43,9 +43,10 @@ class Attachment(Base):
     __tablename__ = 'attachments'
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     email_id = Column(Integer, ForeignKey('emails.id'), nullable=False)
-    filename  = Column(String)
-    filetype = Column(String)
-    url = Column(String)
+    google_attachment_id = Column(String, nullable=False)
+    filename  = Column(String, nullable=False)
+    mime_type = Column(String)
+    size = Column(Integer)
 
     emails = relationship("Email", back_populates="attachments")
 

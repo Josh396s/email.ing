@@ -1,17 +1,21 @@
+# Google OAuth and API libraries
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
 
+# Database and ORM libraries
 pydantic
-pydantic-settings
+pydantic_settings
 sqlalchemy
 alembic
 
+# Authentication and security libraries
 google-auth
 oauth2client
 python-dotenv
 email-validator
 
+# Web framework and related libraries
 fastapi[all]
 authlib
 uvicorn
@@ -22,10 +26,18 @@ python-dateutil
 parse
 beautifulsoup4
 
+# Task queue and related libraries
 celery
 redis
 
+# Email parsing and processing libraries
 python-jose[cryptography]
 cryptography
 
+# Google GenAI library for advanced email processing and generation
 google-genai
+
+# Security/Safety libraries
+presidio-analyzer
+presidio-anonymizer
+spacy

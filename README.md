@@ -72,3 +72,11 @@ Going to try and create an app that makes email.ing much more efficient
 * Users can logout of session
 
 > Next Step: Display actual email content when user clicks on it. Update DB when user deletes an email. Improve UI
+
+### 2/24/26:
+
+* Implemented safety features by utilizing Microsoft Presidio for PII masking prior to sending information to Gemini API
+* Implemented PII vault logic to swap real information back into summaries automatically
+
+> Next Step: Conduct further testing to ensure PII masking/unmasking works. Look into creating a Vector DB for future tasks
+>
