@@ -5,7 +5,7 @@ from db.database import Session
 from db.models import User, Email
 from services.ai_service import classify_and_summarize_batch
 from google.api_core import exceptions
-import json
+from datetime import datetime, timezone
 
 # Initialize Celery
 celery_app = Celery(
@@ -24,6 +24,9 @@ def sync_user_emails(user_id: int):
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             return "User not found"
+        
+        user.last_synced = datetime.now(timezone.utc)
+        db.commit()
         
         fetch_and_store_emails(db, user)
         process_emails_with_ai.delay(user_id)

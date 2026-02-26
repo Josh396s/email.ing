@@ -1,11 +1,8 @@
-import base64 
-from dateutil import parser 
-from datetime import datetime, timezone 
+import base64
 from sqlalchemy.orm import Session
 from db.models import Email, User, Attachment
 from authent.token_service import get_gmail_service 
 from authent.encryption import encrypt_token
-from bs4 import BeautifulSoup 
 
 def get_email_body_content(msg_payload: dict):
     '''

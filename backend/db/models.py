@@ -11,6 +11,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     full_name = Column(String)
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    last_synced = Column(DateTime)
     
     google_sub = Column(LargeBinary, unique=True, index=True)
     encrypted_access_token = Column(LargeBinary, unique=True)

@@ -10,7 +10,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
     
     healthcheck:
-      # Use -d to specify "mydatabase" from your .env
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
@@ -20,6 +19,13 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
       
   backend:
     build:
@@ -32,10 +38,11 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started 
+        condition: service_started
+      ollama:
+        condition: service_started
     working_dir: /app
     env_file: .env
-    # This command will now only run once the DB is healthy
     command:
       sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
 
@@ -50,7 +57,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      ollama:
+        condition: service_started
     command: celery -A tasks.celery_app worker --loglevel=info
 
 volumes:
   postgres_data:
+  ollama_data:

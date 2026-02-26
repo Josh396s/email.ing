@@ -1,3 +1,5 @@
+import base64
+
 from fastapi import FastAPI, Depends, Request, Response, HTTPException, Cookie, status
 from fastapi.responses import RedirectResponse
 
@@ -12,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from authent.encryption import encrypt_token, decrypt_token
 from authent.token_utils import create_access_token, decode_access_token, get_current_user
+from authent.token_service import get_gmail_service
 
 from tasks import sync_user_emails
 
@@ -115,7 +118,7 @@ async def auth(request: Request, db: Session = Depends(get_db)):
     return redirect
 
 @app.get("/auth/status")
-async def get_auth_status(request: Request):
+async def get_auth_status(request: Request, db: Session = Depends(get_db)):
     """
     Authenticate user by decoding token
     """
@@ -124,7 +127,19 @@ async def get_auth_status(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         payload = decode_access_token(token)
-        return {"authenticated": True, "user_id": payload.get("user_id")}
+        user_id = payload.get("user_id")
+
+        # Get the last_synced timestamp for the user
+        user = db.query(User).filter(User.id == user_id).first()
+        last_synced_iso = None
+        if user and user.last_synced:
+            last_synced_iso = user.last_synced.isoformat() + "Z"
+
+        return {
+            "authenticated": True, 
+            "user_id": user_id,
+            "last_synced": last_synced_iso
+        }
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid session")
 
@@ -151,35 +166,35 @@ def get_emails(db: Session = Depends(get_db), current_user: User = Depends(get_c
 
 @app.get("/emails/{email_id}/body")
 async def get_email_body(email_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    '''
-    Decrypts and returns the email body along with attachment metadata
-    '''
+    """
+    Retrieves and decrypts the body content of a specific email, along with its attachments
+    """
     email = db.query(Email).filter(Email.id == email_id, Email.user_id == current_user.id).first()
     
-    if not email:
-        raise HTTPException(status_code=404, detail="Email not found")
-    
-    if not email.body_text:
+    if not email or not email.body_text:
         return {"body": "No content available.", "attachments": []}
 
     try:
         decrypted_body = decrypt_token(email.body_text)
         
-        # Return body and attachments
+        valid_attachments = [
+            {
+                "id": att.id,
+                "filename": att.filename,
+                "filetype": att.mime_type,
+                "url": att.google_attachment_id
+            } for att in email.attachments 
+            if att.filename and "signature" not in att.filename.lower() and "image" not in att.filename.lower()
+        ]
+
         return {
             "body": decrypted_body,
-            "attachments": [
-                {
-                    "id": att.id,
-                    "filename": att.filename,
-                    "filetype": att.filetype,
-                    "url": att.google_attachment_id
-                } for att in email.attachments
-            ]
+            "attachments": valid_attachments
         }
     except Exception as e:
         print(f"Decryption error: {e}")
         return {"body": "Error decrypting content.", "attachments": []}
+
 
 @app.get("/logout")
 async def logout(response: Response):

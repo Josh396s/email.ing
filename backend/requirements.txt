@@ -41,3 +41,6 @@ google-genai
 presidio-analyzer
 presidio-anonymizer
 spacy
+
+# HTTP requests for local Ollama service
+requests

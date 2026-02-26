@@ -79,4 +79,15 @@ Going to try and create an app that makes email.ing much more efficient
 * Implemented PII vault logic to swap real information back into summaries automatically
 
 > Next Step: Conduct further testing to ensure PII masking/unmasking works. Look into creating a Vector DB for future tasks
->
+
+### 2/25/26:
+
+* Confirmed that PII masking/unmasking is working as intended
+* Made minor improvements to UI (Added last synced timestamp, Made changes to urgency color coding, Created icons for categories)
+* Moved from a monolithic LLM architecture to a modular microservices approach
+  * One LLM (Llama) handles classification (Categorization + Urgency)
+  * Another LLM (Gemini) handles summarization
+* Tried using a smaller model (Llama 3:1b) for classification with few-shot prompting but it performed poorly
+* Used a slightly larger model (Llama 3:3b) that performs better
+
+> Next Step: Conduct further testing for classification model, look into fine-tuning
