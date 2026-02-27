@@ -33,6 +33,7 @@ class Email(Base):
     summary = Column(String)
     urgency = Column(String)
     is_processed = Column(Boolean, default=False, index=True)
+    inference_time = Column(Integer, nullable=True)
     is_deleted = Column(Boolean, default=False)
     body_text = Column(LargeBinary) 
 

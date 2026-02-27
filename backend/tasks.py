@@ -61,6 +61,7 @@ def process_emails_with_ai(self, user_id: int):
                 r.summary = data.get("summary", "")
                 r.category = data.get("category")
                 r.urgency = str(data.get("urgency"))
+                r.inference_time = data.get("inference_time")
                 r.is_processed = True
         
         db.commit()

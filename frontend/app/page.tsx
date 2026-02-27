@@ -8,12 +8,15 @@ import {
   CreditCard, 
   AlertTriangle, 
   Mail,
-  Clock
+  Clock,
+  Cpu,
+  Sparkles,
+  Lock,
+  Zap
 } from 'lucide-react';
 import { EmailRow } from '@/src/components/EmailRow';
 import { getPriorityStyles } from '@/src/components/EmailRow';
 
-// Define the Email interface for better type safety
 interface Email {
   id: number;
   sender: string;
@@ -23,6 +26,7 @@ interface Email {
   urgency: string;
   summary: string;
   is_processed: boolean;
+  inference_time: number;
 }
 
 export default function Home() {
@@ -56,23 +60,23 @@ export default function Home() {
     window.location.href = "http://localhost:8000/login";
   };
 
-  if (logged_out) return <div className="h-screen flex items-center justify-center">Loading...</div>;
+  if (logged_out) return <div className="h-screen flex items-center justify-center text-[#F0EAD6] bg-[#95B8BF]">Loading...</div>;
 
   if (!token) {
     return (
-      <main className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white p-6">
+      <main className="h-screen flex flex-col items-center justify-center bg-[#496B73] text-[#F0EAD6] p-6">
         <div className="max-w-md text-center">
-          <h1 className="text-6xl font-black mb-4 tracking-tighter text-indigo-500">Email.ing</h1>
-          <p className="text-slate-400 text-lg mb-10">
-            Your AI-first inbox. Summarized, categorized, and prioritized by Gemini 2.5.
+          <h1 className="text-6xl font-black mb-4 tracking-tighter text-[#F0EAD6]">Email.ing</h1>
+          <p className="text-[#B4BEBF] text-lg mb-10">
+            Your AI-first inbox. Summarized, categorized, and prioritized by modular LLMs.
           </p>
           <button 
             onClick={loginWithGoogle}
-            className="w-full py-4 bg-white text-black rounded-2xl font-bold text-lg hover:bg-indigo-500 hover:text-white transition-all shadow-2xl"
+            className="w-full py-4 bg-[#F0EAD6] text-[#496B73] rounded-2xl font-bold text-lg hover:bg-[#B4BEBF] transition-all shadow-2xl"
           >
             Connect with Gmail
           </button>
-          <p className="mt-6 text-xs text-slate-500 uppercase tracking-widest font-bold">
+          <p className="mt-6 text-xs text-[#B4BEBF] uppercase tracking-widest font-bold">
             Securely encrypted via Fernet-AES
           </p>
         </div>
@@ -115,17 +119,36 @@ function SmartInbox() {
   const triggerSync = async () => {
     setIsSyncing(true);
     try {
+      // 1. Fire the request to fetch new emails and kick off Celery workers
       await fetch('http://localhost:8000/sync', { 
         method: 'POST',
         credentials: 'include'
       });
-      setTimeout(() => {
-        fetchEmails();
-        checkAuthStatus(); 
-      }, 3000);
+
+      // 2. Start polling the database every 2 seconds
+      const pollInterval = setInterval(async () => {
+        const response = await fetch('http://localhost:8000/emails', {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setEmails(data); // This dynamically updates the UI as summaries trickle in!
+
+          // 3. Check if all emails in the UI have finished processing
+          const stillProcessing = data.some((e: Email) => !e.is_processed);
+          
+          if (!stillProcessing) {
+            // Workers are completely done. Stop polling.
+            clearInterval(pollInterval);
+            setIsSyncing(false);
+            checkAuthStatus();
+          }
+        }
+      }, 2000);
+
     } catch (error) {
       console.error("Sync failed:", error);
-    } finally {
       setIsSyncing(false);
     }
   };
@@ -190,32 +213,36 @@ function SmartInbox() {
   const categories = ['All', 'Work', 'Personal', 'Newsletter', 'Transactional'];
 
   return (
-    <div className="flex h-screen bg-white text-slate-900 font-sans overflow-hidden">
+    /* Main Container */
+    <div className="flex h-screen bg-[#ffffff]/10 text-[#F0EAD6] font-sans overflow-hidden">
       
-      {/* SIDEBAR */}
-      <aside className="w-72 border-r border-slate-100 p-8 flex flex-col bg-slate-50/50 flex-shrink-0">
+      {/* Left SideBar */}
+      <aside className="w-60 border-r border-[#88888]/30 p-8 flex flex-col bg-[#88888] flex-shrink-0">
+        
+        {/* Title and State Information */}
         <div className="mb-12">
-          <h1 className="text-3xl font-black text-indigo-600 tracking-tighter">Email.ing</h1>
-          <div className="flex items-center mt-2">
-            <span className={`h-2 w-2 rounded-full mr-2 ${isSyncing ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></span>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              {isSyncing ? 'AI Analyzing...' : 'System Ready'}
+          <h1 className="text-4xl font-black text-[#88888] tracking-tighter">Email.ing</h1>
+          <div className="flex items-center mt-3">
+            <span className={`h-2 w-2 rounded-full mr-2 ${isSyncing ? 'bg-[#F0EAD6] animate-ping' : 'bg-[#5E848C]'}`}></span>
+            <p className="text-[13px] font-bold text-[#F0EAD6]/80 uppercase tracking-widest">
+              {isSyncing ? 'AI Analyzing...' : 'Up to date'}
             </p>
           </div>
           {!isSyncing && (
-            <p className="text-[9px] text-slate-400 font-medium ml-4 mt-1">
+            <p className="text-[12px] text-[#F0EAD6]/75 font-medium ml-1.5 mt-0.5">
               Last synced: {formatLastSynced(lastSynced)}
             </p>
           )}
         </div>
         
+        {/* Navigation Tabs*/}
         <nav className="space-y-1 flex-1 overflow-y-auto">
           {categories.map(cat => (
             <button 
               key={cat}
               onClick={() => setFilter(cat)}
-              className={`w-full text-left px-4 py-3 rounded-xl font-semibold text-sm transition-all ${
-                filter === cat ? 'bg-white shadow-sm text-indigo-600 border border-slate-100' : 'text-slate-500 hover:bg-white/50'
+              className={`w-full text-left px-4 py-3 rounded-xl font-semibold text-med transition-all ${
+                filter === cat ? 'bg-[#F0EAD6] shadow-sm text-[#496B73] border border-[#F0EAD6]/50' : 'text-[#F0EAD6]/80 hover:bg-[#F0EAD6]/10'
               }`}
             >
               {cat}
@@ -223,14 +250,15 @@ function SmartInbox() {
           ))}
         </nav>
 
-        <div className="mt-auto space-y-4 pt-6 border-t border-slate-100">
+        {/* Sync and Logout Buttons */}
+        <div className="mt-auto space-y-4 pt-6 border-t border-[#7C9EA6]/30">
           <button 
             onClick={triggerSync}
             disabled={isSyncing}
             className={`w-full py-4 flex items-center justify-center gap-2 rounded-2xl font-bold text-sm transition-all ${
               isSyncing 
-              ? 'bg-indigo-100 text-indigo-400 cursor-not-allowed' 
-              : 'bg-slate-900 text-white hover:bg-indigo-600'
+              ? 'bg-[#B4BEBF]/30 text-[#F0EAD6]/50 cursor-not-allowed' 
+              : 'bg-[#496B73] text-[#F0EAD6] hover:bg-[#5E848C]'
             }`}
           >
             <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
@@ -239,23 +267,24 @@ function SmartInbox() {
           
           <button 
             onClick={handleLogout}
-            className="w-full py-3 text-slate-400 hover:text-red-500 font-bold text-xs uppercase tracking-widest transition-colors"
+            className="w-full py-3 text-[#F0EAD6]/70 hover:text-[#F0EAD6] font-bold text-xs uppercase tracking-widest transition-colors"
           >
             Sign Out
           </button>
         </div>
       </aside>
 
-      {/* MIDDLE PANE */}
-      <section className="w-1/3 border-r border-slate-100 flex flex-col bg-white flex-shrink-0 overflow-hidden">
-        <div className="p-6 border-b border-slate-50 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-slate-900">{filter} Messages</h2>
-          <span className="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded text-slate-500">
+      {/* Middle Pane */}
+      <section className="w-1/3 border-r border-[#7C9EA6]/30 flex flex-col bg-[#5E848C]/50 flex-shrink-0 overflow-hidden">
+        <div className="p-6 border-b border-[#7C9EA6]/30 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-[#F0EAD6]">{filter} Messages</h2>
+          <span className="text-[15px] font-bold bg-[#95b8BF]/70 px-2 py-1 rounded text-[#F0EAD6]">
             {emails.filter(e => filter === 'All' || e.category?.toLowerCase() === filter.toLowerCase()).length} Total
           </span>
         </div>
         
-        <div className="flex-1 overflow-y-auto">
+        {/* Email List */}
+        <div className="flex-1 overflow-y-auto text-[#99999]/80">
           {emails
             .filter(e => filter === 'All' || e.category?.toLowerCase() === filter.toLowerCase())
             .map((email: Email) => (
@@ -269,45 +298,52 @@ function SmartInbox() {
         </div>
       </section>
 
-      {/* READING PANE */}
-      <main className="flex-1 overflow-y-auto bg-white">
+      {/* Reading Pane */}
+      <main className="flex-1 overflow-y-auto bg-[#95B8BF]/65">
         {selectedEmail ? (
-          <div className="max-w-3xl mx-auto p-12">
-            <header className="mb-8">
-              <div className="flex items-center gap-3 mb-6">
-                <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full uppercase">
+          <div className="max-w-5xl mx-auto p-12">
+            <header className="mb-4">
+              <div className="flex items-center gap-5 mb-5">
+                <span className="px-3 py-1 bg-[#496B73]/100 text-[#F0EAD6] text-[12px] font-bold rounded-full uppercase border border-[#7C9EA6]">
                   {selectedEmail.category}
                 </span>
-                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${getPriorityStyles(selectedEmail.urgency)}`}>
+                <span className={`text-[12px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${getPriorityStyles(selectedEmail.urgency)}`}>
                   LVL {selectedEmail.urgency}
                 </span>
-                <span className="text-slate-400 text-xs font-medium">{selectedEmail.sender}</span>
+                <span className="text-[#F0EAD6]/90 text-[16px] font-semilight">{selectedEmail.sender}</span>
+                {selectedEmail.inference_time && (
+                  <span className="px-2 py-1 bg-[#496B73]/80 text-[#F0EAD6] text-[12px] font-mono font-bold rounded flex items-center gap-1 shadow-sm">
+                    <Zap size={12} /> Inference: {(selectedEmail.inference_time/1000).toFixed(2)}s
+                  </span>
+                )}
+            
               </div>
-              <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight leading-tight">
+              <h1 className="text-[35px] font-extrabold text-[#F0EAD6] tracking-tight leading-tight">
                 {selectedEmail.subject}
               </h1>
             </header>
 
-            <div className="bg-slate-900 text-white p-8 rounded-[2rem] mb-12 shadow-2xl shadow-indigo-100">
-              <h4 className="text-indigo-400 text-[10px] font-black uppercase tracking-widest mb-4">Agent Briefing</h4>
+            <div className="bg-[#496B73] text-[#F0EAD6] p-8 rounded-[2rem] mb-12 shadow-xl shadow-[#496B73]/30">
+              <h4 className="text-[#95B8BF] text-[10px] font-black uppercase tracking-widest mb-4">Agent Briefing</h4>
               <p className="text-lg font-medium leading-relaxed italic">
                 "{selectedEmail.summary}"
               </p>
             </div>
 
-            <article className="prose prose-slate max-w-none mb-10">
-              <div className="border border-slate-100 rounded-3xl overflow-hidden bg-white shadow-inner min-h-[500px]">
+            <article className="email_content">
+              <div className="border border-[#7C9EA6]/50 rounded-3xl overflow-hidden bg-white shadow-inner min-h-[600px]">
+                {/* The iframe background remains white so standard HTML emails still look correct */}
                 <iframe
                   title="Email Content"
                   srcDoc={fullBody} 
-                  className="w-full h-[600px] border-none"
+                  className="w-full h-[700px] border-none bg-white"
                   sandbox="allow-popups allow-popups-to-escape-sandbox" 
                 />
               </div>
             </article>
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-slate-200">
+          <div className="h-full flex flex-col items-center justify-center text-[#F0EAD6]/60">
             <p className="text-sm font-black uppercase tracking-[0.2em]">Select a message to analyze</p>
           </div>
         )}

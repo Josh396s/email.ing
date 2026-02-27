@@ -1,8 +1,9 @@
+import time
+import json
+import requests
 from google import genai
 from google.genai import types
 from authent.encryption import decrypt_token
-import json
-import requests
 from config import settings
 from services.privacy import mask_content, deanonymize_text
 from bs4 import BeautifulSoup
@@ -81,8 +82,9 @@ def get_classification_ollama(email_text):
             "model": "llama3.2",
             "prompt": prompt,
             "stream": False,
-            "format": "json"
-        }, timeout=30)
+            "format": "json",
+            "keep_alive": "1h"
+        }, timeout=120)
 
         return json.loads(response.json()['response'])
     except Exception as e:
@@ -96,15 +98,20 @@ def classify_and_summarize_batch(email_records: list):
     email_blocks = []
     pii_vault = {} 
     ollama_results = {}
+    ollama_times = {}
 
     # Extract Category & Urgency with Llama
     for e in email_records:
         content, pii_map = prepare_email_for_ai(e)
         pii_vault[e.id] = pii_map
         
+        start_ollama = time.time()
         class_data = get_classification_ollama(content)
+        end_ollama = time.time()
+
         ollama_results[e.id] = class_data
-        
+        ollama_times[e.id] = (end_ollama - start_ollama) * 1000
+
         email_blocks.append(
             f"ID: {e.id}\nSender: {e.sender}\nSubject: {e.subject}\nContent: {content}\n---"
         )
@@ -134,14 +141,20 @@ def classify_and_summarize_batch(email_records: list):
     ]
 
     try:
+        start_gemini = time.time()
+
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type='application/json',
                 safety_settings=safety_settings
             )
         )
+
+        end_gemini = time.time()
+        gemini_total_ms = (end_gemini - start_gemini) * 1000
+        gemini_ms_per_email = gemini_total_ms / len(email_records)
 
         gemini_results = json.loads(response.text)
         final_results = []
@@ -154,11 +167,17 @@ def classify_and_summarize_batch(email_records: list):
                 res["summary"] = deanonymize_text(res["summary"], pii_vault[email_id])
             
             class_data = ollama_results.get(email_id, {})
+
+            local_ms = ollama_times.get(email_id, 0)
+            total_ms = round(local_ms + gemini_ms_per_email)
+
+
             final_results.append({
                 "id": email_id,
                 "category": class_data.get("category", "Uncategorized"),
                 "urgency": str(class_data.get("urgency", "1")),
-                "summary": res["summary"]
+                "summary": res["summary"],
+                "inference_time": total_ms
             })
             
         return final_results

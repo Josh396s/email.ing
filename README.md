@@ -91,3 +91,18 @@ Going to try and create an app that makes email.ing much more efficient
 * Used a slightly larger model (Llama 3:3b) that performs better
 
 > Next Step: Conduct further testing for classification model, look into fine-tuning
+
+### 2/26/26:
+
+* Included 'inference_time' column to Email table
+  * Inference time is the total time it took to analyze an email using AI tools
+  * Each email in the frontend has their inference time displayed
+* Updated docker-compose.yml, Llama model now uses local GPU rather than CPU for faster compute times (~13s -> ~<1s)
+* Made major improvements to the UI
+  * Color palette
+  * Section alignment
+  * Font Styles/Sizes
+  * The frontend queries the DB every 2 seconds to waiting for the AI to finish processing in order to automatically update the frontend
+    * Inefficient for production, but allows for a better UI/UX experience when running locally because it eliminates the need to refresh the whole page after the AI is done processing
+
+> Next Step: Make more refinements to the UI. Look to use a smaller model or make some improvements on inference time. Also, start looking into Vector DB in order to start laying down the pipeline for the smart search feature
