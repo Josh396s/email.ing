@@ -4,9 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from authlib.integrations.starlette_client import OAuth
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
+from typing import List
 
 from db.database import get_db
-from db.models import User, Email
+from db.models import User
+from db import schemas
 from authent.token_utils import create_access_token, decode_access_token, get_current_user
 
 from services import user_service, email_service
@@ -89,7 +91,7 @@ async def auth(request: Request, db: Session = Depends(get_db)):
     )
     return redirect
 
-@app.get("/auth/status")
+@app.get("/auth/status", response_model=schemas.UserStatus)
 async def get_auth_status(request: Request, db: Session = Depends(get_db)):
     """
     Authenticate user and fetch sync status
@@ -103,7 +105,6 @@ async def get_auth_status(request: Request, db: Session = Depends(get_db)):
     try:
         payload = decode_access_token(token)
         user_id = payload.get("user_id")
-
         last_synced = user_service.get_user_sync_status(db, user_id)
 
         return {
@@ -123,14 +124,14 @@ async def trigger_sync(current_user: User = Depends(get_current_user)):
     task = sync_user_emails.delay(current_user.id)
     return {"message": "Sync started", "task_id": task.id}
 
-@app.get("/emails")
+@app.get("/emails", response_model=List[schemas.EmailRead])
 def get_emails(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Gets user's recent emails from DB
     """
     return email_service.get_recent_emails_for_user(db, current_user.id)
 
-@app.get("/emails/{email_id}/body")
+@app.get("/emails/{email_id}/body", response_model=schemas.EmailBodyResponse)
 async def get_email_body(email_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Retrieves and decrypts the body content of a specific email, along with its attachments

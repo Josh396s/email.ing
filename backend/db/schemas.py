@@ -1,33 +1,48 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
+from typing import List, Optional
 
-class UserInfo(BaseModel):
-    email: str
-    full_name: str | None
-    created_at: datetime | None
+class UserStatus(BaseModel):
+    """
+    Schema for authentication state and sync metadata
+    """
+    authenticated: bool
+    user_id: int
+    last_synced: Optional[datetime] = None
 
-class UserEncrypt(BaseModel):
-    google_sub: bytes
-    encrypted_access_token : bytes
-    encrypted_refresh_token  : bytes | None
+    model_config = ConfigDict(from_attributes=True)
 
-class Email(BaseModel):
-    user_id : int
-    email_id : str
-    sender : str | None
-    subject : str | None
-    received_at : datetime | None
-    category : str | None
-    urgency : str | None
-    is_deleted : bool
+class EmailRead(BaseModel):
+    """
+    Schema for the email list view
+    """
+    id: int
+    thread_id: str
+    sender: Optional[str] = None
+    subject: Optional[str] = None
+    received_at: Optional[datetime] = None
+    category: Optional[str] = None
+    summary: Optional[str] = None
+    urgency: Optional[str] = None
+    is_processed: bool
+    inference_time: Optional[int] = None
 
-class Attachment(BaseModel):
-    email_id : int | None
-    google_attachment_id : str | None
-    filename : str
-    mime_type : str | None
-    size : int | None
+    model_config = ConfigDict(from_attributes=True)
 
-class Followup(BaseModel):
-    email_id : str
-    remind_at : datetime
+class AttachmentRead(BaseModel):
+    """
+    Schema for individual attachments in the UI
+    """
+    id: int
+    filename: str
+    filetype: Optional[str] = None
+    url: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class EmailBodyResponse(BaseModel):
+    """
+    Schema for the detailed email view including decrypted body
+    """
+    body: str
+    attachments: List[AttachmentRead]
