@@ -65,6 +65,11 @@ def process_emails_with_ai(self, user_id: int):
                 r.is_processed = True
         
         db.commit()
+
+        # Trigger next batch if there are more unprocessed emails
+        if len(records) == 10:
+            process_emails_with_ai.delay(user_id)
+
         return f"Deep analysis complete for {len(records)} emails."
     except Exception as e:
         db.rollback()

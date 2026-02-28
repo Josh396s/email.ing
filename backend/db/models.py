@@ -10,7 +10,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     email = Column(String, unique=True, index=True, nullable=False)
     full_name = Column(String)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_synced = Column(DateTime)
     
     google_sub = Column(LargeBinary, unique=True, index=True)

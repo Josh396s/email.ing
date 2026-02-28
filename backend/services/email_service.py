@@ -1,5 +1,6 @@
 import base64
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 from db.models import Email, User, Attachment
 from authent.token_service import get_gmail_service 
 from authent.encryption import encrypt_token, decrypt_token
@@ -59,9 +60,19 @@ def fetch_and_store_emails(db: Session, user: User):
     results = service.users().messages().list(userId="me", maxResults=20, q=query).execute()
     messages = results.get('messages', [])
 
+    # Fetch all maxResults emails from DB to avoid multiple queries in the loop
+    fetched_msg_ids = [msg['id'] for msg in messages]
+    existing_records = db.query(Email.email_id).filter(Email.email_id.in_(fetched_msg_ids)).all()
+    existing_ids = {record[0] for record in existing_records}
+
     # Process each email message
     for msg_info in messages:
         msg_id = msg_info['id']
+        
+        # Skip if email has already been fetched
+        if msg_id in existing_ids:
+            continue
+
         if db.query(Email).filter(Email.email_id == msg_id).first():
             continue
         
@@ -71,9 +82,14 @@ def fetch_and_store_emails(db: Session, user: User):
         # Get HTML and Attachments
         html_content, found_attachments = get_email_body_content(payload) 
         
+        # Extract email headers for subject and sender information
         headers = payload.get('headers', [])
         subject = next((h['value'] for h in headers if h['name'] == 'Subject'), "No Subject")
         sender = next((h['value'] for h in headers if h['name'] == 'From'), "Unknown")
+        
+        # Get email's internal timestamp and convert to datetime
+        internal_date_ms = int(msg.get('internalDate', 0))
+        received_timestamp = datetime.fromtimestamp(internal_date_ms / 1000.0, tz=timezone.utc)
 
         # Create Email record
         email_record = Email(
@@ -82,7 +98,8 @@ def fetch_and_store_emails(db: Session, user: User):
             thread_id=msg_info.get('threadId'),
             sender=sender,
             subject=subject,
-            body_text=encrypt_token(html_content), # Encrypting HTML
+            received_at=received_timestamp,
+            body_text=encrypt_token(html_content),
             is_processed=False
         )
         db.add(email_record)

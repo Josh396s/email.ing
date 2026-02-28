@@ -3,6 +3,7 @@ import time
 import re
 import json
 import requests
+import concurrent.futures
 from google import genai
 from google.genai import types
 from authent.encryption import decrypt_token
@@ -70,21 +71,37 @@ def classify_and_summarize_batch(email_records: list):
     ollama_results = {}
     ollama_times = {}
 
-    # Extract Category & Urgency with Llama
-    for e in email_records:
+    # Helper function to process each email with Ollama in parallel
+    def parallel_process_classification(e):
         content, pii_map = prepare_email_for_ai(e)
-        pii_vault[e.id] = pii_map
-        
         start_ollama = time.time()
         class_data = get_classification_ollama(content)
         end_ollama = time.time()
+        
+        return {
+            "id": e.id, 
+            "pii_map": pii_map, 
+            "class_data": class_data, 
+            "content": content, 
+            "time": (end_ollama - start_ollama) * 1000,
+            "sender": e.sender, 
+            "subject": e.subject
+        }
 
-        ollama_results[e.id] = class_data
-        ollama_times[e.id] = (end_ollama - start_ollama) * 1000
-
-        email_blocks.append(
-            f"ID: {e.id}\nSender: {e.sender}\nSubject: {e.subject}\nContent: {content}\n---"
-        )
+    # Process emails in parallel to get classifications and prepare for summarization
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(parallel_process_classification, e) for e in email_records]
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            
+            # Repopulate your dictionaries
+            pii_vault[res["id"]] = res["pii_map"]
+            ollama_results[res["id"]] = res["class_data"]
+            ollama_times[res["id"]] = res["time"]
+            
+            email_blocks.append(
+                f"ID: {res['id']}\nSender: {res['sender']}\nSubject: {res['subject']}\nContent: {res['content']}\n---"
+            )
 
     # Generate summary using Gemini
     prompt = GEMINI_SUMMARIZATION_PROMPT.format(
