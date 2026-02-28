@@ -51,11 +51,3 @@ class Attachment(Base):
     size = Column(Integer)
 
     emails = relationship("Email", back_populates="attachments")
-
-class Followup(Base):
-    __tablename__ = 'followups'
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    email_id = Column(Integer, ForeignKey('emails.id'), nullable=False)
-    remind_at = Column(DateTime)
-
-    emails = relationship("Email", back_populates="followups")
