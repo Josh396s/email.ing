@@ -113,5 +113,6 @@ Going to try and create an app that makes email.ing much more efficient
   - Created prompt.py to hold prompts, making ai_service.py easier to read and allowing for easier experiments with prompt tuning
   - Moved user creating/updates to user_service.py from main.py, essentially creating a service layer
 - Fixed a minor type cast issue with the email id being generated from the LLM
+- Parallelized execution of LLama to improve processing efficiency
 
 > Next Step: Same as last update
