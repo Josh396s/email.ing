@@ -65,7 +65,7 @@ async def auth(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No user info from Google.")
 
     # Create or update user in DB
-    user = user_service.update_or_create_user_from_google(
+    user = user_service.create_or_update_user(
         db=db,
         email=user_info.get('email'),
         name=user_info.get('name', ''),

@@ -1,7 +1,6 @@
 import logging
 from presidio_analyzer import AnalyzerEngine
 from presidio_analyzer.nlp_engine import NlpEngineProvider
-from presidio_anonymizer import AnonymizerEngine
 
 logging.getLogger("presidio-analyzer").setLevel(logging.ERROR)
 
@@ -13,9 +12,8 @@ nlp_config = {
 provider = NlpEngineProvider(nlp_configuration=nlp_config)
 nlp_engine = provider.create_engine()
 
-# Initialize Presidio Analyzer and Anonymizer
+# Initialize Presidio Analyzer
 analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=["en"])
-anonymizer = AnonymizerEngine()
 
 def mask_content(text: str):
     '''
@@ -24,19 +22,24 @@ def mask_content(text: str):
     if not text:
         return "", {}
     
+    # Analyze text to find PII entities
     results = analyzer.analyze(text=text, entities=["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER"], language='en')
     pii_map = {}
-    anonymized_result = anonymizer.anonymize(text=text, analyzer_results=results)
     
-    anonymized_text = anonymized_result.text
+    # Sort results in reverse order to avoid messing up indices when replacing
+    sorted_results = sorted(results, key=lambda x: x.start, reverse=True)
+    temp_text = text
     
-    # Map the Presidio placeholders to the original text
-    for res in results:
+    # Replace each detected entity with a placeholder and store the mapping
+    for i, res in enumerate(sorted_results):
         original_value = text[res.start:res.end]
-        placeholder = f"<{res.entity_type}>" 
+        placeholder = f"<{res.entity_type}_{i}>"
         pii_map[placeholder] = original_value
+        
+        # Replace the original value with the placeholder in the text
+        temp_text = temp_text[:res.start] + placeholder + temp_text[res.end:]
 
-    return anonymized_text, pii_map
+    return temp_text, pii_map
 
 def deanonymize_text(text: str, pii_map: dict) -> str:
     '''

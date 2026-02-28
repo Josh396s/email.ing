@@ -40,7 +40,7 @@ def get_classification_ollama(email_text):
     """
     Classification LLM: Local Llama handles classification and urgency scoring
     """
-    prompt = LLAMA_CLASSIFICATION_PROMPT
+    prompt = LLAMA_CLASSIFICATION_PROMPT.format(email_text=email_text[:1500])
     try:
         response = requests.post(OLLAMA_URL, json={
             "model": "llama3.2",
@@ -145,6 +145,6 @@ def classify_and_summarize_batch(email_records: list):
             
         return final_results
     
-    except Exception as e:
-        print(f"Batch AI Error: {e}")
-        return [{"id": e.id, "summary": "Error: Batch processing failed.", "category": "Error"} for e in email_records]
+    except Exception as exception:
+        print(f"Batch AI Error: {exception}")
+        return [{"id": record.id, "summary": "Error: Batch processing failed.", "category": "Error"} for record in email_records]
