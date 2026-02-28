@@ -115,5 +115,6 @@ Going to try and create an app that makes email.ing much more efficient
 - Fixed a minor type cast issue with the email id being generated from the LLM
 - Parallelized execution of LLama to improve processing efficiency
 - Avoided wasting resources for syncs that have no new content by exiting before doing any API calls or further processing
+- Updated schemas to reflect current progress
 
 > Next Step: Same as last update
