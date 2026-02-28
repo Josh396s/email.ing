@@ -114,5 +114,6 @@ Going to try and create an app that makes email.ing much more efficient
   - Moved user creating/updates to user_service.py from main.py, essentially creating a service layer
 - Fixed a minor type cast issue with the email id being generated from the LLM
 - Parallelized execution of LLama to improve processing efficiency
+- Avoided wasting resources for syncs that have no new content by exiting before doing any API calls or further processing
 
 > Next Step: Same as last update
