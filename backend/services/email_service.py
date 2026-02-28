@@ -77,50 +77,51 @@ def fetch_and_store_emails(db: Session, user: User):
             continue
         
         try:
-            msg = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
-            payload = msg.get('payload')
-        
-            # Get HTML and Attachments
-            html_content, found_attachments = get_email_body_content(payload) 
+            # Use a nested transaction to ensure that if any step fails, we can roll back just that email's processing without affecting others
+            with db.begin_nested(): 
+                msg = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
+                payload = msg.get('payload')
             
-            # Extract email headers for subject and sender information
-            headers = payload.get('headers', [])
-            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), "No Subject")
-            sender = next((h['value'] for h in headers if h['name'] == 'From'), "Unknown")
-            
-            # Get email's internal timestamp and convert to datetime
-            internal_date_ms = int(msg.get('internalDate', 0))
-            received_timestamp = datetime.fromtimestamp(internal_date_ms / 1000.0, tz=timezone.utc)
+                # Get HTML and Attachments
+                html_content, found_attachments = get_email_body_content(payload) 
+                
+                # Extract email headers for subject and sender information
+                headers = payload.get('headers', [])
+                subject = next((h['value'] for h in headers if h['name'] == 'Subject'), "No Subject")
+                sender = next((h['value'] for h in headers if h['name'] == 'From'), "Unknown")
+                
+                # Get email's internal timestamp and convert to datetime
+                internal_date_ms = int(msg.get('internalDate', 0))
+                received_timestamp = datetime.fromtimestamp(internal_date_ms / 1000.0, tz=timezone.utc)
 
-            # Create Email record
-            email_record = Email(
-                user_id=user.id,
-                email_id=msg_id,
-                thread_id=msg_info.get('threadId'),
-                sender=sender,
-                subject=subject,
-                received_at=received_timestamp,
-                body_text=encrypt_token(html_content),
-                is_processed=False
-            )
-            db.add(email_record)
-            db.flush()
-
-            # Create Attachment records
-            for att in found_attachments:
-                db_att = Attachment(
-                    email_id=email_record.id,
-                    filename=att['filename'],
-                    mime_type=att['mime_type'],
-                    google_attachment_id=att['attachment_id'],
-                    size=att['size']
+                # Create Email record
+                email_record = Email(
+                    user_id=user.id,
+                    email_id=msg_id,
+                    thread_id=msg_info.get('threadId'),
+                    sender=sender,
+                    subject=subject,
+                    received_at=received_timestamp,
+                    body_text=encrypt_token(html_content),
+                    is_processed=False
                 )
-                db.add(db_att)
+                db.add(email_record)
+                db.flush()
+
+                # Create Attachment records
+                for att in found_attachments:
+                    db_att = Attachment(
+                        email_id=email_record.id,
+                        filename=att['filename'],
+                        mime_type=att['mime_type'],
+                        google_attachment_id=att['attachment_id'],
+                        size=att['size']
+                    )
+                    db.add(db_att)
         
         # Catch any exceptions during processing of an email, log it, and continue with the next one
         except Exception as e:
             print(f"Failed to process email {msg_id}: {e}")
-            db.rollback() 
             continue
     db.commit()
 
