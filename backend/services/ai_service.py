@@ -95,16 +95,21 @@ def classify_and_summarize_batch(email_records: list):
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(parallel_process_classification, e) for e in email_records]
         for future in concurrent.futures.as_completed(futures):
-            res = future.result()
+            try:
+                res = future.result()
+                
+                # Repopulate dictionaries
+                pii_vault[res["id"]] = res["pii_map"]
+                ollama_results[res["id"]] = res["class_data"]
+                ollama_times[res["id"]] = res["time"]
+                
+                email_blocks.append(
+                    f"ID: {res['id']}\nSender: {res['sender']}\nSubject: {res['subject']}\nContent: {res['content']}\n---"
+                )
             
-            # Repopulate your dictionaries
-            pii_vault[res["id"]] = res["pii_map"]
-            ollama_results[res["id"]] = res["class_data"]
-            ollama_times[res["id"]] = res["time"]
-            
-            email_blocks.append(
-                f"ID: {res['id']}\nSender: {res['sender']}\nSubject: {res['subject']}\nContent: {res['content']}\n---"
-            )
+            # Catch exceptions from individual email processing to ensure one failure doesn't affect the whole batch
+            except Exception as exc:
+                print(f"Ollama thread failed: {exc}")
 
     # Generate summary using Gemini
     prompt = GEMINI_SUMMARIZATION_PROMPT.format(
