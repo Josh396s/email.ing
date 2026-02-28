@@ -52,6 +52,10 @@ def process_emails_with_ai(self, user_id: int):
             Email.is_processed == False,
         ).limit(10).all()
         
+        # If no records, exit. Otherwise, process in batches of 10
+        if not records:
+            return "No pending emails to process."
+
         results = classify_and_summarize_batch(records)
         results_map = {int(res['id']): res for res in results if res.get('id') is not None}
 

@@ -66,6 +66,9 @@ def classify_and_summarize_batch(email_records: list):
     """
     Summarization LLM: Combines Ollama's classification with Gemini's summaries
     """
+    if not email_records:
+        return []
+
     email_blocks = []
     pii_vault = {} 
     ollama_results = {}

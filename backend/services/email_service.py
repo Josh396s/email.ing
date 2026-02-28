@@ -60,6 +60,9 @@ def fetch_and_store_emails(db: Session, user: User):
     results = service.users().messages().list(userId="me", maxResults=20, q=query).execute()
     messages = results.get('messages', [])
 
+    if not messages:
+        return
+
     # Fetch all maxResults emails from DB to avoid multiple queries in the loop
     fetched_msg_ids = [msg['id'] for msg in messages]
     existing_records = db.query(Email.email_id).filter(Email.email_id.in_(fetched_msg_ids)).all()
@@ -71,9 +74,6 @@ def fetch_and_store_emails(db: Session, user: User):
         
         # Skip if email has already been fetched
         if msg_id in existing_ids:
-            continue
-
-        if db.query(Email).filter(Email.email_id == msg_id).first():
             continue
         
         msg = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
