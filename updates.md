@@ -1,0 +1,117 @@
+# Email.ing
+
+Going to try and create an app that makes email.ing much more efficient
+
+## Updates
+
+### 7/28/25:
+
+- Finished building the authentication process in the 'authent' folder. It uses OAuth to verify access to user's google account and saves user's info under 'tokens' folder after the first time they log in.
+
+> Next Step: Create the database and populate it with metadata regarding the user's emails
+
+### 8/6/25:
+
+- Finished setting up the database and tested it using fake data.
+
+> Next Step: Incorporate the database with the Gmail API and populate it with user's info.
+
+### 8/8/25:
+
+- Working on setting up the login process using FastAPI.
+- Fixed issue with Dockerfile and module imports
+- Combined db.py and init_db.py into one file
+
+> Bug: Seems to be a port already in use issue that throws a 500 error to the server.
+> Next Step: Incorporate the database with the Gmail API and populate it with user's info.
+
+### 9/02/25:
+
+- Google authorization is fully functioning, might need to update scopes in the future based on info needed, but baseline is working.
+- Updated User() model in database to incorporate important tokens such as access and refresh.
+- Incorporated schemas using pydantic to ensure data being provided to the database is accurate and follows guidelines.
+- Created 'Encryption.py' to encrypt/decrypt sensitive info.
+- Encrypted sensitive info for User() before sending to DB. Decryption of the data after pulled from the DB works as expected.
+- Created 'documentation.md' to keep track of tech being used and document work being done. Its mostly for my understanding.
+- Created 'resources.txt' to maintain resources used in this project
+
+> Next Step: Create JWT for users. Develop FastAPI paths to populate other tables in the DB.
+
+### 11/05/25:
+
+- Implemented JWT tokens: encode, decode, and validation. Tested to ensure it fully worked
+- Updated authorization and user creation paths in main.py
+
+> Next Step: Start working on decryption and connecting secure tokens with Gmail API
+
+### 2/10/26:
+
+* Encryption/Decryption fully working
+* Full workflow works(Signup->Tokens->Email_fetch->DB_population)
+* Implemented DB version control using alembic
+
+> Next Step: Utilize Celery/Redis to handle large volumes of emails
+
+### 2/11/26:
+
+* Implented Celery/Redis to handle large volumes of emails via /sync function
+
+> Next Step: Start looking into the implementation of classifying emails and their summarization
+
+### 2/12/26:
+
+* Utilized Gemini 2.5 to summarize and categorize emails
+
+> Next Step: Refine how summarization works and what categories will be used
+
+### 2/15/26:
+
+* Implented a simple front-end using Next.js, React, and Typescrit
+* Created a login page that registers user
+* Created home page that displays user's emails as well as AI insights
+* Users can logout of session
+
+> Next Step: Display actual email content when user clicks on it. Update DB when user deletes an email. Improve UI
+
+### 2/24/26:
+
+* Implemented safety features by utilizing Microsoft Presidio for PII masking prior to sending information to Gemini API
+* Implemented PII vault logic to swap real information back into summaries automatically
+
+> Next Step: Conduct further testing to ensure PII masking/unmasking works. Look into creating a Vector DB for future tasks
+
+### 2/25/26:
+
+* Confirmed that PII masking/unmasking is working as intended
+* Made minor improvements to UI (Added last synced timestamp, Made changes to urgency color coding, Created icons for categories)
+* Moved from a monolithic LLM architecture to a modular microservices approach
+  * One LLM (Llama) handles classification (Categorization + Urgency)
+  * Another LLM (Gemini) handles summarization
+* Tried using a smaller model (Llama 3:1b) for classification with few-shot prompting but it performed poorly
+* Used a slightly larger model (Llama 3:3b) that performs better
+
+> Next Step: Conduct further testing for classification model, look into fine-tuning
+
+### 2/26/26:
+
+* Included 'inference_time' column to Email table
+  * Inference time is the total time it took to analyze an email using AI tools
+  * Each email in the frontend has their inference time displayed
+* Updated docker-compose.yml, Llama model now uses local GPU rather than CPU for faster compute times (~13s -> ~<1s)
+* Made major improvements to the UI
+  * Color palette
+  * Section alignment
+  * Font Styles/Sizes
+  * The frontend queries the DB every 2 seconds to waiting for the AI to finish processing in order to automatically update the frontend
+    * Inefficient for production, but allows for a better UI/UX experience when running locally because it eliminates the need to refresh the whole page after the AI is done processing
+
+> Next Step: Make more refinements to the UI. Look to use a smaller model or make some improvements on inference time. Also, start looking into Vector DB in order to start laying down the pipeline for the smart search feature
+
+### 2/27/26:
+
+- Making code formatting/structural changes to improve readibility and functionality
+  - Created prompt.py to hold prompts, making ai_service.py easier to read and allowing for easier experiments with prompt tuning
+  - Moved user creating/updates to user_service.py from main.py, essentially creating a service layer
+- Fixed a minor type cast issue with the email id being generated from the LLM
+
+> Next Step: Same as last update

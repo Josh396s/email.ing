@@ -9,10 +9,8 @@ from fastapi import HTTPException
 
 def get_gmail_service(db: Session, user: User):
     """
-    Retrieves, decrypts, and possibly refreshes the user's Google tokens,
-    then returns an initialized Gmail API service object
+    Retrieves, decrypts, and possibly refreshes the user's Google tokens. Returns an initialized Gmail API service object
     """
-    
     # Decrypt the tokens stored in the database
     access_token = decrypt_token(user.encrypted_access_token)
     
@@ -47,7 +45,7 @@ def get_gmail_service(db: Session, user: User):
                 # If refresh fails, we likely need a full re-auth
                 raise HTTPException(status_code=401, detail="Refresh token expired or revoked")
         else:
-            # If we get here, we don't even HAVE a refresh token
+            # If we get here, we don't have a refresh token
             raise HTTPException(status_code=401, detail="No valid refresh token found. Please re-login.")
 
     return build("gmail", "v1", credentials=creds)

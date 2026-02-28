@@ -53,7 +53,7 @@ def process_emails_with_ai(self, user_id: int):
         ).limit(10).all()
         
         results = classify_and_summarize_batch(records)
-        results_map = {res['id']: res for res in results}
+        results_map = {int(res['id']): res for res in results if res.get('id') is not None}
 
         for r in records:
             if r.id in results_map:

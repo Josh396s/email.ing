@@ -1,38 +1,32 @@
-import base64
-
 from fastapi import FastAPI, Depends, Request, Response, HTTPException, Cookie, status
 from fastapi.responses import RedirectResponse
-
 from fastapi.middleware.cors import CORSMiddleware
-
 from authlib.integrations.starlette_client import OAuth
 from starlette.middleware.sessions import SessionMiddleware
+from sqlalchemy.orm import Session
 
 from db.database import get_db
 from db.models import User, Email
-from sqlalchemy.orm import Session
-
-from authent.encryption import encrypt_token, decrypt_token
 from authent.token_utils import create_access_token, decode_access_token, get_current_user
-from authent.token_service import get_gmail_service
 
+from services import user_service, email_service
 from tasks import sync_user_emails
-
 from config import settings
-from datetime import datetime, timezone
 
+# Initialize FastAPI app and middleware
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="!secret")
 
 # Allow your local Next.js dev server to talk to the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"], # Your Next.js address
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Set up OAuth client for Google
 oauth = OAuth()
 oauth.register(
     name='google',
@@ -59,6 +53,7 @@ async def auth(request: Request, db: Session = Depends(get_db)):
     """
     Authentication route. Handles Google callback, user creation/update, and JWT issuance
     """
+    # Exchange authorization code for tokens
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:
@@ -69,76 +64,52 @@ async def auth(request: Request, db: Session = Depends(get_db)):
     if not user_info:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No user info from Google.")
 
-    google_access_token = token.get('access_token')
-    google_refresh_token = token.get('refresh_token')
-    google_sub = user_info.get('sub')
-    user_email = user_info.get('email')
-    user_name = user_info.get('name', '')
+    # Create or update user in DB
+    user = user_service.update_or_create_user_from_google(
+        db=db,
+        email=user_info.get('email'),
+        name=user_info.get('name', ''),
+        google_sub=user_info.get('sub'),
+        access_token=token.get('access_token'),
+        refresh_token=token.get('refresh_token')
+    )
 
-    # Check if user exists
-    user = db.query(User).filter(User.email == user_email).first()
-
-    if not user:
-        # Create New User
-        user = User(
-            email=user_email,
-            full_name=user_name,
-            created_at=datetime.now(timezone.utc),
-            google_sub=encrypt_token(google_sub),
-            encrypted_access_token=encrypt_token(google_access_token),
-            encrypted_refresh_token=encrypt_token(google_refresh_token) if google_refresh_token else None
-        )
-        db.add(user)
-    else:
-        # Update Existing User
-        user.encrypted_access_token = encrypt_token(google_access_token)
-        # Only update refresh token if a new one is provided
-        if google_refresh_token:
-            user.encrypted_refresh_token = encrypt_token(google_refresh_token)
-    
-    db.commit()
-    db.refresh(user)
-
-    # Issue secure application JWT
+    # Create JWT token for session
     access_token_jwt = create_access_token(data={"user_id": user.id})
     
-    # Redirect user back to main page
+    # Set JWT in HttpOnly cookie and redirect to frontend
     redirect = RedirectResponse(url='http://localhost:3000')
-    
-    # Inclulde JWT token in cookies
     redirect.set_cookie(
         key="user_token", 
         value=access_token_jwt, 
         httponly=True,
         path="/",
-        samesite="lax", # Important for cross-port local dev
-        secure = True
+        samesite="lax", 
+        secure=True
     )
-    
     return redirect
 
 @app.get("/auth/status")
 async def get_auth_status(request: Request, db: Session = Depends(get_db)):
     """
-    Authenticate user by decoding token
+    Authenticate user and fetch sync status
     """
+    # Check for JWT token in cookies
     token = request.cookies.get("user_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # Decode token to get user ID and sync status    
     try:
         payload = decode_access_token(token)
         user_id = payload.get("user_id")
 
-        # Get the last_synced timestamp for the user
-        user = db.query(User).filter(User.id == user_id).first()
-        last_synced_iso = None
-        if user and user.last_synced:
-            last_synced_iso = user.last_synced.isoformat() + "Z"
+        last_synced = user_service.get_user_sync_status(db, user_id)
 
         return {
             "authenticated": True, 
             "user_id": user_id,
-            "last_synced": last_synced_iso
+            "last_synced": last_synced
         }
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid session")
@@ -157,43 +128,14 @@ def get_emails(db: Session = Depends(get_db), current_user: User = Depends(get_c
     """
     Gets user's recent emails from DB
     """
-    user_emails = db.query(Email)\
-        .filter(Email.user_id == current_user.id)\
-        .order_by(Email.id.desc())\
-        .all()
-    
-    return user_emails
+    return email_service.get_recent_emails_for_user(db, current_user.id)
 
 @app.get("/emails/{email_id}/body")
 async def get_email_body(email_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Retrieves and decrypts the body content of a specific email, along with its attachments
     """
-    email = db.query(Email).filter(Email.id == email_id, Email.user_id == current_user.id).first()
-    
-    if not email or not email.body_text:
-        return {"body": "No content available.", "attachments": []}
-
-    try:
-        decrypted_body = decrypt_token(email.body_text)
-        
-        valid_attachments = [
-            {
-                "id": att.id,
-                "filename": att.filename,
-                "filetype": att.mime_type,
-                "url": att.google_attachment_id
-            } for att in email.attachments 
-            if att.filename and "signature" not in att.filename.lower() and "image" not in att.filename.lower()
-        ]
-
-        return {
-            "body": decrypted_body,
-            "attachments": valid_attachments
-        }
-    except Exception as e:
-        print(f"Decryption error: {e}")
-        return {"body": "Error decrypting content.", "attachments": []}
+    return email_service.get_email_details(db, current_user.id, email_id)
 
 
 @app.get("/logout")

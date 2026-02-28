@@ -2,7 +2,7 @@ import base64
 from sqlalchemy.orm import Session
 from db.models import Email, User, Attachment
 from authent.token_service import get_gmail_service 
-from authent.encryption import encrypt_token
+from authent.encryption import encrypt_token, decrypt_token
 
 def get_email_body_content(msg_payload: dict):
     '''
@@ -101,56 +101,43 @@ def fetch_and_store_emails(db: Session, user: User):
         
     db.commit()
 
-def reconcile_deleted_emails(db: Session, user: User, gmail_service):
+def get_recent_emails_for_user(db: Session, user_id: int):
     """
-    Identifies emails in the DB that no longer exist in Gmail and sets is_deleted=True (Soft Delete).
-    WARNING: This process is SLOW as it requires fetching ALL message IDs from Gmail.
+    Returns list of emails for the user, ordered by recency
     """
+    return db.query(Email)\
+        .filter(Email.user_id == user_id)\
+        .order_by(Email.id.desc())\
+        .all()
+
+def get_email_details(db: Session, user_id: int, email_id: int):
+    """
+    Fetches a specific email, decrypts its body, and formats attachments
+    """
+    email = db.query(Email).filter(Email.id == email_id, Email.user_id == user_id).first()
     
-    # 1. Get all email IDs currently stored for this user (Fast DB query)
-    # Exclude already soft-deleted emails from the check
-    stored_email_ids = db.query(Email.email_id).filter(
-        Email.user_id == user.id,
-        Email.is_deleted == False
-    ).all()
-    stored_ids = {id[0] for id in stored_email_ids} # Convert to set for fast lookup
-    
-    if not stored_ids:
-        print(f"No active emails found for reconciliation for user {user.id}")
-        return 0
+    # If email doesn't exist or has no body, return a default message
+    if not email or not email.body_text:
+        return {"body": "No content available.", "attachments": []}
+
+    try:
+        decrypted_body = decrypt_token(email.body_text)
         
-    # 2. Get ALL currently existing message IDs from Gmail (Slow operation - requires pagination)
-    gmail_existing_ids = set()
-    next_page_token = None
-    
-    while True:
-        # Fetch up to 500 message IDs per request (better than the default 100)
-        results = gmail_service.users().messages().list(
-            userId="me", 
-            maxResults=500,
-            pageToken=next_page_token
-        ).execute()
-        
-        for message in results.get('messages', []):
-            gmail_existing_ids.add(message['id'])
-            
-        next_page_token = results.get('nextPageToken')
-        if not next_page_token:
-            break
-            
-    # 3. Find deleted IDs: IDs in our storage but NOT in Gmail's current list
-    deleted_ids_to_soft_delete = stored_ids - gmail_existing_ids
-    
-    if deleted_ids_to_soft_delete:
-        # 4. Execute Soft Deletion: Update the is_deleted flag
-        print(f"Soft-deleting {len(deleted_ids_to_soft_delete)} emails for user {user.id}")
-        
-        (db.query(Email)
-            .filter(Email.user_id == user.id)
-            .filter(Email.email_id.in_(deleted_ids_to_soft_delete))
-            .update({Email.is_deleted: True}, synchronize_session=False))
-            
-        db.commit()
-        return len(deleted_ids_to_soft_delete)
-    
-    return 0
+        # Obtain attachments
+        valid_attachments = [
+            {
+                "id": att.id,
+                "filename": att.filename,
+                "filetype": att.mime_type,
+                "url": att.google_attachment_id
+            } for att in email.attachments 
+            if att.filename and "signature" not in att.filename.lower() and "image" not in att.filename.lower()
+        ]
+
+        return {
+            "body": decrypted_body,
+            "attachments": valid_attachments
+        }
+    except Exception as e:
+        print(f"Decryption error: {e}")
+        return {"body": "Error decrypting content.", "attachments": []}

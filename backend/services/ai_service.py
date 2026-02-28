@@ -1,4 +1,6 @@
+import logging
 import time
+import re
 import json
 import requests
 from google import genai
@@ -7,6 +9,7 @@ from authent.encryption import decrypt_token
 from config import settings
 from services.privacy import mask_content, deanonymize_text
 from bs4 import BeautifulSoup
+from prompts import LLAMA_CLASSIFICATION_PROMPT, GEMINI_SUMMARIZATION_PROMPT
 
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
@@ -37,46 +40,7 @@ def get_classification_ollama(email_text):
     """
     Classification LLM: Local Llama handles classification and urgency scoring
     """
-    prompt = f"""
-        You are a precise email classifier. Analyze the email below and return EXACTLY a valid JSON object with 'category' and 'urgency'. Do not output any markdown or conversational text.
-
-        CATEGORIES:
-        - Work: Direct messages from colleagues, clients, or specific project updates.
-        - Transactional: Receipts, shipping updates, password resets, subscriptions.
-        - Newsletter: Automated job alerts, promotional offers, marketing, and mailing lists.
-        - Personal: Messages from real human friends or family.
-
-        URGENCY SCALE:
-        1 - Very Low: Promotions, marketing, spam, glasses sales.
-        2 - Low: Automated digests, receipts, subscription notices, LinkedIn job alerts.
-        3 - Normal: Standard emails requiring an eventual response.
-        4 - High: Time-sensitive tasks, meetings happening today.
-        5 - Critical: Server outages, absolute emergencies.
-
-        Example 1:
-        Email: "LinkedIn: 10 new Machine Learning Engineer roles in your area. Apply to IBM and more..."
-        Output: {{"category": "Newsletter", "urgency": 2}}
-
-        Example 2:
-        Email: "Massive Weekend Sale! Get 50% off all prescription glasses."
-        Output: {{"category": "Newsletter", "urgency": 1}}
-
-        Example 3:
-        Email: "Your Cosmo: Learn GenAI subscription from CodeSignal on Google Play will be canceled on Oct 14."
-        Output: {{"category": "Transactional", "urgency": 2}}
-
-        Example 4:
-        Email: "Hey man, are we still on for grabbing food on Friday?"
-        Output: {{"category": "Personal", "urgency": 3}}
-
-        Example 5:
-        Email: "Production server is down! We need a fix immediately."
-        Output: {{"category": "Work", "urgency": 5}}
-
-        Now analyze this email:
-        Email: {email_text[:1500]}
-        Output:
-    """
+    prompt = LLAMA_CLASSIFICATION_PROMPT
     try:
         response = requests.post(OLLAMA_URL, json={
             "model": "llama3.2",
@@ -86,10 +50,16 @@ def get_classification_ollama(email_text):
             "keep_alive": "1h"
         }, timeout=120)
 
-        return json.loads(response.json()['response'])
-    except Exception as e:
-        print(f"Ollama Error: {e}")
-        return {"category": "Uncategorized", "urgency": "1"}
+        raw_response = response.json()['response']
+
+        json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        return json.loads(raw_response)
+    
+    except (json.JSONDecodeError, Exception) as e:
+        logging.error(f"Failed to parse LLM output: {raw_response}")
+        return {"category": "Uncategorized", "urgency": "3"}
 
 def classify_and_summarize_batch(email_records: list):
     """
@@ -117,21 +87,10 @@ def classify_and_summarize_batch(email_records: list):
         )
 
     # Generate summary using Gemini
-    prompt = f"""
-    Analyze these {len(email_records)} emails. 
-    CRITICAL: If an email contains harmful or dangerous content, summarize it as "Content blocked due to safety concerns."
-
-    EMAILS:
-    {chr(10).join(email_blocks)}
-
-    Return exactly this JSON list structure:
-    [
-        {{
-            "id": <id>,
-            "summary": "25-word action-oriented summary."
-        }}
-    ]
-    """
+    prompt = GEMINI_SUMMARIZATION_PROMPT.format(
+        num_emails=len(email_records), 
+        email_blocks=chr(10).join(email_blocks)
+    )
 
     safety_settings = [
         {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
@@ -161,7 +120,11 @@ def classify_and_summarize_batch(email_records: list):
         
         # Combine classification and summary, and deanonymize if needed
         for res in gemini_results:
-            email_id = res.get("id")
+            try:
+                email_id = int(res.get("id"))
+            except (TypeError, ValueError):
+                print(f"AI returned invalid ID format: {res.get('id')}")
+                continue
             
             if email_id in pii_vault:
                 res["summary"] = deanonymize_text(res["summary"], pii_vault[email_id])
