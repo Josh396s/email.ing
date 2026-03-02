@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from jose import jwt, JWTError
-from fastapi import Depends, HTTPException, status, Cookie, Request
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 
 from config import settings

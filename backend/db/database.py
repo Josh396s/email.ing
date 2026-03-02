@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from db.models import User, Email, Attachment, Followup, Base
+from db.models import User, Email, Attachment, Base
 from config import settings
 
 DATABASE_URL = settings.DB_URL

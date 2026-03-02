@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, Request, Response, HTTPException, Cookie, status
+from fastapi import FastAPI, Depends, Request, Response, HTTPException, status
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from authlib.integrations.starlette_client import OAuth

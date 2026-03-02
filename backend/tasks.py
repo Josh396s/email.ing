@@ -41,7 +41,7 @@ def sync_user_emails(user_id: int):
     retry_backoff=60,
     max_retries=5
 )
-def process_emails_with_ai(self, user_id: int):
+def process_emails_with_ai(self, user_id: int, max_email_count: int = 10):
     """
     Fetch emails and generate AI content
     """
@@ -50,7 +50,7 @@ def process_emails_with_ai(self, user_id: int):
         records = db.query(Email).filter(
             Email.user_id == user_id, 
             Email.is_processed == False,
-        ).limit(10).all()
+        ).limit(max_email_count).all()
         
         # If no records, exit. Otherwise, process in batches of 10
         if not records:
@@ -59,6 +59,7 @@ def process_emails_with_ai(self, user_id: int):
         results = classify_and_summarize_batch(records)
         results_map = {int(res['id']): res for res in results if res.get('id') is not None}
 
+        # Update email records with AI results
         for r in records:
             if r.id in results_map:
                 data = results_map[r.id]
@@ -71,8 +72,8 @@ def process_emails_with_ai(self, user_id: int):
         db.commit()
 
         # Trigger next batch if there are more unprocessed emails
-        if len(records) == 10:
-            process_emails_with_ai.delay(user_id)
+        if len(records) == max_email_count:
+            process_emails_with_ai.delay(user_id, max_email_count)
 
         return f"Deep analysis complete for {len(records)} emails."
     except Exception as e:

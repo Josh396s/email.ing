@@ -53,16 +53,18 @@ def get_classification_ollama(email_text):
 
         raw_response = response.json()['response']
 
+        # Extract JSON from the response
         json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
         if json_match:
             return json.loads(json_match.group())
         return json.loads(raw_response)
     
+    # Catch JSON parsing errors and any other exceptions to prevent the whole batch from failing
     except (json.JSONDecodeError, Exception) as e:
         logging.error(f"Failed to parse LLM output: {raw_response}")
-        return {"category": "Uncategorized", "urgency": "3"}
+        return {"category": "Uncategorized", "urgency": "1"}
 
-def classify_and_summarize_batch(email_records: list):
+def classify_and_summarize_batch(email_records: list, max_workers: int = 5) -> list:
     """
     Summarization LLM: Combines Ollama's classification with Gemini's summaries
     """
@@ -92,7 +94,7 @@ def classify_and_summarize_batch(email_records: list):
         }
 
     # Process emails in parallel to get classifications and prepare for summarization
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(parallel_process_classification, e) for e in email_records]
         for future in concurrent.futures.as_completed(futures):
             try:
@@ -117,6 +119,7 @@ def classify_and_summarize_batch(email_records: list):
         email_blocks=chr(10).join(email_blocks)
     )
 
+    # Define safety settings to prevent harmful content generation
     safety_settings = [
         {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
         {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
@@ -141,6 +144,7 @@ def classify_and_summarize_batch(email_records: list):
         gemini_ms_per_email = gemini_total_ms / len(email_records)
 
         gemini_results = json.loads(response.text)
+        
         final_results = []
         
         # Combine classification and summary, and deanonymize if needed
@@ -154,7 +158,7 @@ def classify_and_summarize_batch(email_records: list):
             if email_id in pii_vault:
                 res["summary"] = deanonymize_text(res["summary"], pii_vault[email_id])
             
-            class_data = ollama_results.get(email_id, {})
+            classification_data = ollama_results.get(email_id, {})
 
             local_ms = ollama_times.get(email_id, 0)
             total_ms = round(local_ms + gemini_ms_per_email)
@@ -162,8 +166,8 @@ def classify_and_summarize_batch(email_records: list):
 
             final_results.append({
                 "id": email_id,
-                "category": class_data.get("category", "Uncategorized"),
-                "urgency": str(class_data.get("urgency", "1")),
+                "category": classification_data.get("category", "Uncategorized"),
+                "urgency": str(classification_data.get("urgency", "1")),
                 "summary": res["summary"],
                 "inference_time": total_ms
             })

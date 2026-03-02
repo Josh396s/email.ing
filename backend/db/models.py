@@ -39,7 +39,6 @@ class Email(Base):
 
     users = relationship("User", back_populates="emails")
     attachments = relationship("Attachment", back_populates="emails", cascade="all, delete-orphan")
-    followups = relationship("Followup", back_populates="emails", cascade="all, delete-orphan")
 
 class Attachment(Base):
     __tablename__ = 'attachments'
