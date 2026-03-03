@@ -6,7 +6,7 @@ Email.ing is a full-stack application designed to categorize, score for urgency,
 
 ## Architecture
 
-![Emailing Architecture Diagram](./docs/architecture-diagram.png)
+![Emailing Architecture Diagram](docs\Emailing_Architecture Diagram.png "Architecture")
 
 ## Key Features
 
@@ -25,7 +25,7 @@ Email.ing is a full-stack application designed to categorize, score for urgency,
 
 ## How to Run
 
-1. **Environment:** Requires Docker and an NVIDIA GPU (for optimal Llama performance).
-2. **Setup:** Clone the repo and create a `.env` with your `GEMINI_API_KEY` and Google OAuth credentials.
-3. **Command:** Run `docker-compose up --build`.
-4. **Access:** The frontend will be available at `localhost:3000` and the API at `localhost:8000`.
+1. **Environment:** Requires Docker and an NVIDIA GPU (for optimal Llama performance)
+2. **Setup:** Clone the repo and create a `.env` with your `GEMINI_API_KEY` and Google OAuth credentials
+3. **Command:** Run `docker-compose up --build`
+4. **Access:** The frontend will be available at `localhost:3000` and the API at `localhost:8000`
