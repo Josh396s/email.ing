@@ -6,7 +6,7 @@ Email.ing is a full-stack application designed to categorize, score for urgency,
 
 ## Architecture
 
-![Emailing Architecture Diagram](docs\Emailing_Architecture Diagram.png "Architecture")
+![Email.ing Architecture](docs/Emailing_Architecture%20Diagram.png)
 
 ## Key Features
 
