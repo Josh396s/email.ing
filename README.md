@@ -1,9 +1,12 @@
-
 # Email.ing: Privacy-First AI Email Management
 
 ## Overview
 
 Email.ing is a full-stack application designed to categorize, score for urgency, and summarize emails using a modular LLM architecture. It prioritizes user privacy by masking PII before any data leaves the local environment.
+
+## Architecture
+
+![Emailing Architecture Diagram](./docs/architecture-diagram.png)
 
 ## Key Features
 
