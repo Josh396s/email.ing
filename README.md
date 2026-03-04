@@ -32,9 +32,11 @@ Email.ing is a full-stack, machine-learning-powered application built to solve "
 
 #### **1. Prerequisites**
 
-* **Docker & Docker Compose**
-* **NVIDIA GPU** (Recommended for local Llama acceleration)
-* **Ollama:** Must be installed and running locally. Run `ollama pull llama3.2` to ensure the classification model is available.
+* **Docker & Docker Compose:** Essential for orchestrating the backend, frontend, database, and Redis workers
+* **Google Cloud Project:** Required to enable the **Gmail API** and generate OAuth 2.0 credentials (`CLIENT_ID` and `CLIENT_SECRET`)
+* **Google AI Studio Account:** Required to generate a **Gemini API Key** for the summarization service
+* **Ollama (Local):** Must be installed and running on your host machine to serve the Llama 3 model. Run `ollama pull llama3.2` before starting the application
+* **NVIDIA GPU (Optional):** Highly recommended for local LLM acceleration
 
 #### **2. Setup Environment Variables**
 
