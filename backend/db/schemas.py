@@ -37,6 +37,7 @@ class AttachmentRead(BaseModel):
     filename: str
     filetype: Optional[str] = None
     url: Optional[str] = None
+    size: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 

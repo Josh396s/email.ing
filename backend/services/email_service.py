@@ -155,7 +155,8 @@ def get_email_details(db: Session, user_id: int, email_id: int):
                 "id": att.id,
                 "filename": att.filename,
                 "filetype": att.mime_type,
-                "url": att.google_attachment_id
+                "url": att.google_attachment_id,
+                "size": att.size
             } for att in email.attachments 
             if att.filename and "signature" not in att.filename.lower() and "image" not in att.filename.lower()
         ]
@@ -192,7 +193,7 @@ def download_attachment(db: Session, user: User, email_id: int, attachment_id: i
         
         # Decode the base64 URL-safe string
         file_data = base64.urlsafe_b64decode(attachment_obj['data'])
-        return file_data, attachment_record.mime_type, attachment_record.filename
+        return file_data, attachment_record.mime_type, attachment_record.filename, attachment_record.size
         
     except Exception as e:
         print(f"Failed to fetch attachment: {e}")

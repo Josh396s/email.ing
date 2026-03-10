@@ -374,7 +374,7 @@ function SmartInbox() {
                       onClick={() => handleDownloadAttachment(selectedEmail.id, att.id, att.filename)}
                       className="px-3 py-1.5 bg-[#496B73]/60 hover:bg-[#496B73] border border-[#7C9EA6]/50 rounded-lg text-xs font-semibold text-[#F0EAD6] flex items-center gap-2 shadow-sm transition-colors cursor-pointer group"
                     >
-                      📎 {att.filename}
+                      {att.filename}
                       <span className="text-[#B4BEBF] font-normal text-[10px]">
                         {(att.size / 1024).toFixed(1)} KB
                       </span>
@@ -398,10 +398,11 @@ function SmartInbox() {
               <div className="border border-[#7C9EA6]/50 rounded-3xl overflow-hidden bg-white shadow-inner min-h-[600px]">
                 {/* The iframe background remains white so standard HTML emails still look correct */}
                 <iframe
+                  key={selectedEmail.id}
                   title="Email Content"
                   srcDoc={fullBody} 
-                  className="w-full h-[700px] border-none bg-white"
-                  sandbox="allow-popups allow-popups-to-escape-sandbox" 
+                  className="w-full h-[700px] border-none bg-white text-black"
+                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
                 />
               </div>
             </article>
