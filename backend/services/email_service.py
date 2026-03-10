@@ -1,5 +1,6 @@
 import base64
 from sqlalchemy.orm import Session
+from fastapi.responses import Response
 from datetime import datetime, timezone
 from db.models import Email, User, Attachment
 from authent.token_service import get_gmail_service 
@@ -154,7 +155,8 @@ def get_email_details(db: Session, user_id: int, email_id: int):
                 "id": att.id,
                 "filename": att.filename,
                 "filetype": att.mime_type,
-                "url": att.google_attachment_id
+                "url": att.google_attachment_id,
+                "size": att.size
             } for att in email.attachments 
             if att.filename and "signature" not in att.filename.lower() and "image" not in att.filename.lower()
         ]
@@ -166,3 +168,33 @@ def get_email_details(db: Session, user_id: int, email_id: int):
     except Exception as e:
         print(f"Decryption error: {e}")
         return {"body": "Error decrypting content.", "attachments": []}
+    
+def download_attachment(db: Session, user: User, email_id: int, attachment_id: int):
+    """
+    Fetches raw attachment data from Google API and decodes it.
+    """
+    # Get the email and attachment records
+    email_record = db.query(Email).filter(Email.id == email_id, Email.user_id == user.id).first()
+    if not email_record:
+        raise Exception("Email not found")
+        
+    attachment_record = db.query(Attachment).filter(Attachment.id == attachment_id, Attachment.email_id == email_id).first()
+    if not attachment_record:
+        raise Exception("Attachment not found")
+
+    # Fetch the raw data from Gmail API
+    service = get_gmail_service(db, user)
+    try:
+        attachment_obj = service.users().messages().attachments().get(
+            userId='me', 
+            messageId=email_record.email_id, # Google's message ID
+            id=attachment_record.google_attachment_id # Google's attachment ID
+        ).execute()
+        
+        # Decode the base64 URL-safe string
+        file_data = base64.urlsafe_b64decode(attachment_obj['data'])
+        return file_data, attachment_record.mime_type, attachment_record.filename
+        
+    except Exception as e:
+        print(f"Failed to fetch attachment: {e}")
+        raise Exception("Could not retrieve attachment from Google")
