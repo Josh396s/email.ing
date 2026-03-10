@@ -68,7 +68,6 @@ def process_emails_with_ai(self, user_id: int, max_email_count: int = 10):
                 r.urgency = str(data.get("urgency"))
                 r.inference_time = data.get("inference_time")
                 r.is_processed = True
-        
         db.commit()
 
         # Trigger next batch if there are more unprocessed emails

@@ -120,7 +120,7 @@ function SmartInbox() {
   const triggerSync = async () => {
     setIsSyncing(true);
     try {
-      // 1. Fire the request to fetch new emails and kick off Celery workers
+      // Initiate request to fetch new emails and kick off Celery workers
       await fetch('http://localhost:8000/sync', { 
         method: 'POST',
         credentials: 'include'
@@ -165,7 +165,9 @@ function SmartInbox() {
   const formatLastSynced = (dateStr: string | null) => {
     if (!dateStr) return 'Never';
     const date = new Date(dateStr);
-    return date.toLocaleTimeString([], { 
+    return date.toLocaleTimeString([], {
+      month: 'short',
+      day: 'numeric',
       hour: '2-digit', 
       minute: '2-digit',
       hour12: false 

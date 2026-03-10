@@ -193,7 +193,7 @@ def download_attachment(db: Session, user: User, email_id: int, attachment_id: i
         
         # Decode the base64 URL-safe string
         file_data = base64.urlsafe_b64decode(attachment_obj['data'])
-        return file_data, attachment_record.mime_type, attachment_record.filename, attachment_record.size
+        return file_data, attachment_record.mime_type, attachment_record.filename
         
     except Exception as e:
         print(f"Failed to fetch attachment: {e}")
