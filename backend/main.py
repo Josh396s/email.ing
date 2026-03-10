@@ -138,6 +138,27 @@ async def get_email_body(email_id: int, db: Session = Depends(get_db), current_u
     """
     return email_service.get_email_details(db, current_user.id, email_id)
 
+@app.get("/emails/{email_id}/attachments/{attachment_id}")
+async def get_attachment_route(
+    email_id: int, 
+    attachment_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Downloads a specific attachment.
+    """
+    try:
+        file_data, mime_type, filename = email_service.download_attachment(db, current_user, email_id, attachment_id)
+        
+        # Return as a file stream with the correct headers for downloading
+        return Response(
+            content=file_data, 
+            media_type=mime_type, 
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/logout")
 async def logout(response: Response):

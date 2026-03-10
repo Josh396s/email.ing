@@ -94,6 +94,7 @@ function SmartInbox() {
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [fullBody, setFullBody] = useState<string>("");
   const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<any[]>([]);
 
   const fetchEmails = async () => {
     setIsSyncing(true);
@@ -125,17 +126,25 @@ function SmartInbox() {
         credentials: 'include'
       });
 
-      // 2. Start polling the database every 2 seconds
+      // Poll the database every 2 seconds
       const pollInterval = setInterval(async () => {
         const response = await fetch('http://localhost:8000/emails', {
-          credentials: 'include'
-        });
+        credentials: 'include'
+      });
         
         if (response.ok) {
           const data = await response.json();
-          setEmails(data); // This dynamically updates the UI as summaries trickle in!
+          setEmails(data); // This updates the UI as summaries are generated
 
-          // 3. Check if all emails in the UI have finished processing
+          // Keep the reading pane updated if an email is open
+          setSelectedEmail((prev) => {
+          if (!prev) return null;
+            // Find the newly updated version of the currently open email
+            const updatedEmail = data.find((e: Email) => e.id === prev.id);
+            return updatedEmail || prev; 
+          });
+
+          // Check if all emails in the UI have finished processing
           const stillProcessing = data.some((e: Email) => !e.is_processed);
           
           if (!stillProcessing) {
@@ -186,15 +195,49 @@ function SmartInbox() {
   const handleSelectEmail = async (email: any) => {
     setSelectedEmail(email);
     setFullBody("Decrypting message...");
+    setAttachments([]);
 
     try {
       const response = await fetch(`http://localhost:8000/emails/${email.id}/body`, {
         credentials: "include",
+        cache: "no-store"
       });
       const data = await response.json();
+
+      console.log("Backend response for body:", data);
+
       setFullBody(data.body || "No content available.");
+      setAttachments(data.attachments || []);
     } catch (error) {
+      console.error("Fetch error:", error);
       setFullBody("Failed to load email content.");
+    }
+  };
+
+  const handleDownloadAttachment = async (emailId: number, attachmentId: number, filename: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000/emails/${emailId}/attachments/${attachmentId}`, {
+        credentials: "include", // Ensures JWT cookie is sent
+        cache: "no-store"
+      });
+      
+      if (!response.ok) throw new Error("Download failed");
+      
+      // Convert the response to a Blob and create a temporary URL
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a hidden link, click it to download, and clean up
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Error downloading attachment:", error);
+      alert("Failed to download attachment.");
     }
   };
 
@@ -321,6 +364,27 @@ function SmartInbox() {
               <h1 className="text-[35px] font-extrabold text-[#F0EAD6] tracking-tight leading-tight">
                 {selectedEmail.subject}
               </h1>
+
+              {/* Attachment UI */}
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {attachments.map((att) => (
+                    <button 
+                      key={att.id} 
+                      onClick={() => handleDownloadAttachment(selectedEmail.id, att.id, att.filename)}
+                      className="px-3 py-1.5 bg-[#496B73]/60 hover:bg-[#496B73] border border-[#7C9EA6]/50 rounded-lg text-xs font-semibold text-[#F0EAD6] flex items-center gap-2 shadow-sm transition-colors cursor-pointer group"
+                    >
+                      📎 {att.filename}
+                      <span className="text-[#B4BEBF] font-normal text-[10px]">
+                        {(att.size / 1024).toFixed(1)} KB
+                      </span>
+                      <span className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity text-[#F0EAD6]">
+                        ↓
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </header>
 
             <div className="bg-[#496B73] text-[#F0EAD6] p-8 rounded-[2rem] mb-12 shadow-xl shadow-[#496B73]/30">
