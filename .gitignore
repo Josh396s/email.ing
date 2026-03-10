@@ -15,6 +15,9 @@ postgres_data/
 # Alembic
 backend/migrations/versions/*.pyc
 
+# Credentials
+backend\authent\credentials.json
+
 # OS
 .DS_Store
 Thumbs.db
