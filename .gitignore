@@ -25,3 +25,6 @@ Thumbs.db
 # Frontend
 node_modules/
 .next/
+
+# Emails
+training\data\personal_emails.mbox

@@ -18,21 +18,80 @@ OLLAMA_URL = "http://ollama:11434/api/generate"
 
 def prepare_email_for_ai(email_record):
     """
-    Decrypts the email body, strips HTML, masks PII, and prepares it for AI processing
+    Decrypts the email body, strips HTML, normalizes, and masks PII
+    Returns a single masked payload for local AI processing
     """
     try:
         if not email_record.body_text:
             return "No content.", {}
+
+        # Get the subject
+        subject = email_record.subject or ""
+
+        # Decrypt the body from the DB
+        decrypted_body = decrypt_token(email_record.body_text)
+
+        def extract_core_content(text):
+            # Split on any forward/reply header pattern
+            # Matches "---------- Forwarded message ---------" and "On [date]... wrote:"
+            split_pattern = re.compile(
+                r'(-{3,}\s*Forwarded message\s*-{3,}|On\s.+?wrote:)',
+                re.DOTALL
+            )
             
-        raw_body = decrypt_token(email_record.body_text)
+            parts = split_pattern.split(text)
+            
+            if len(parts) == 1:
+                # No forwarding/reply chain — return as-is
+                return text.strip()
+            
+            # For forwards: take the LAST segment (deepest original message)
+            # For replies: take the FIRST segment (the new content at the top)
+            subject_lower = text.lower()
+            is_forward = 'forwarded message' in subject_lower or text.lower().startswith('[subject] fwd')
+            
+            if is_forward:
+                # Get the last non-empty segment — that's the original email
+                segments = [p.strip() for p in parts if p.strip() and not split_pattern.match(p.strip())]
+                return segments[-1] if segments else text.strip()
+            else:
+                # Reply — take everything before the first quoted section
+                return parts[0].strip()
+
+        def clean_text(text):
+            '''
+            Function that removes HTML tags, normalizes whitespace and strips quoted reply chains 
+            '''
+            # Remove HTML tags
+            soup = BeautifulSoup(text, "html.parser")
+            text = soup.get_text(separator=" ", strip=True)
+            
+            # Normalize whitespacing
+            text = ' '.join(text.split())
+
+            # Strip quoted reply chains
+            text = extract_core_content(text)
+
+            return text
+
+        clean_subject = clean_text(subject) if subject else ""
+        clean_body = clean_text(decrypted_body)
         
-        # Remove all HTML/CSS
-        soup = BeautifulSoup(raw_body, "html.parser")
-        clean_text = soup.get_text(separator=" ", strip=True)
+        clean_body = re.sub(r'^(From|To|Cc|Bcc|Date|Subject):.*?(Dear |Hi |Hello |To Whom)', 
+                    r'\2', clean_body, flags=re.IGNORECASE)
+        clean_body = ' '.join(clean_body.split())
         
-        masked_body, pii_map = mask_content(clean_text)
+        # Mask the content and create a map for unmasking
+        masked_subject, subject_pii_map = mask_content(clean_subject)
+        masked_body, body_pii_map = mask_content(clean_body)
         
-        return masked_body[:1500].strip(), pii_map
+        # Merge the pii maps
+        pii_map = {**subject_pii_map, **body_pii_map}
+
+        # Format the final content
+        final_content = f"[SUBJECT] {masked_subject} [BODY] {masked_body}"
+
+        return final_content, pii_map
     except Exception as e:
         print(f"Preparation Error: {e}")
         return "[Content Error]", {}

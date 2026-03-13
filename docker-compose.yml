@@ -69,6 +69,22 @@ services:
         condition: service_started
     command: celery -A tasks.celery_app worker --loglevel=info
 
+  jupyter:
+    build: 
+      context: ./training
+    container_name: emailing_jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./training:/home/josh/work
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    env_file:
+      - .env
+    depends_on:
+      - db
+    command: start-notebook.sh --ServerApp.token='' --ServerApp.password=''
+
 volumes:
   postgres_data:
   ollama_data:
