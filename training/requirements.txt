@@ -1,0 +1,18 @@
+pandas
+fsspec
+huggingface_hub
+ipywidgets
+dotenv
+datasets
+google-genai
+anthropic
+tqdm
+
+# Active learning library
+scikit-activeml[opt]
+
+# For importing personal test data
+mailbox
+
+# Parsing data
+beautifulsoup4
