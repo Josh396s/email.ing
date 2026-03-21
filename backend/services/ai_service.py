@@ -33,7 +33,6 @@ def prepare_email_for_ai(email_record):
 
         def extract_core_content(text):
             # Split on any forward/reply header pattern
-            # Matches "---------- Forwarded message ---------" and "On [date]... wrote:"
             split_pattern = re.compile(
                 r'(-{3,}\s*Forwarded message\s*-{3,}|On\s.+?wrote:)',
                 re.DOTALL
@@ -42,7 +41,7 @@ def prepare_email_for_ai(email_record):
             parts = split_pattern.split(text)
             
             if len(parts) == 1:
-                # No forwarding/reply chain — return as-is
+                # Remove forwarding/reply chain
                 return text.strip()
             
             # For forwards: take the LAST segment (deepest original message)
@@ -51,11 +50,11 @@ def prepare_email_for_ai(email_record):
             is_forward = 'forwarded message' in subject_lower or text.lower().startswith('[subject] fwd')
             
             if is_forward:
-                # Get the last non-empty segment — that's the original email
+                # Get the original email
                 segments = [p.strip() for p in parts if p.strip() and not split_pattern.match(p.strip())]
                 return segments[-1] if segments else text.strip()
             else:
-                # Reply — take everything before the first quoted section
+                # Take everything before the first quoted section
                 return parts[0].strip()
 
         def clean_text(text):

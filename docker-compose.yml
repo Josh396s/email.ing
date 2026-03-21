@@ -27,13 +27,6 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
       
   backend:
     build:
@@ -69,16 +62,18 @@ services:
         condition: service_started
     command: celery -A tasks.celery_app worker --loglevel=info
 
-  jupyter:
+  training:
     build: 
       context: ./training
-    container_name: emailing_jupyter
+    container_name: training
     ports:
       - "8888:8888"
     volumes:
-      - ./training:/home/josh/work
+        - ./backend:/backend
+        - ./training:/app
     environment:
       - JUPYTER_ENABLE_LAB=yes
+      - PYTHONPATH=/backend
     env_file:
       - .env
     depends_on:
