@@ -20,6 +20,10 @@ datasets
 evaluate  
 timm
 transformers
+accelerate>=1.1.0
+
+# PEFT
+peft
 
 # PII Masking
 presidio-analyzer
