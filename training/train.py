@@ -86,16 +86,16 @@ def compute_metrics(eval_pred):
     predicted_class = np.argmax(probabilities, axis=1)
 
     # Calculate accuracy
-    acc = np.round(accuracy.compute(predictions=predicted_class, references=labels))
+    acc = np.round(accuracy.compute(predictions=predicted_class, references=labels)['accuracy'], 3)
     
     # Calculate f1
-    f1 = f1_score.compute(predictions=predicted_class, references=labels, average='macro')
+    f1 = np.round(f1_score.compute(predictions=predicted_class, references=labels, average='macro')['f1'], 3)
     
     return {"Accuracy":acc, "F1": f1}
 
 # Set up training arguments
 lr = 5e-5
-batch_size = 8
+batch_size = 16
 num_epochs = 10
 
 training_args = TrainingArguments(output_dir='/app/models',
