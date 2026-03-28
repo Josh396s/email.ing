@@ -1,9 +1,10 @@
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, DataCollatorWithPadding, TrainingArguments, Trainer
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, DataCollatorWithPadding, TrainingArguments, Trainer, pipeline
 from data_preprocessing import preprocess
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, TaskType
 import numpy as np
 import evaluate
+import mlflow
 import sys
 
 # Set data mappings
@@ -49,7 +50,7 @@ dataset = load_dataset(data_path, data_files=data_files)
 
 ############################################# REMOVE 'urgency' column for now. Will focus on setting up pipeline for category classification first #############################################
 dataset['train'] = dataset['train'].remove_columns('urgency')
-dataset['test'] = dataset['test'].remove_columns('urgency')
+# dataset['test'] = dataset['test'].remove_columns('urgency')
 ############################################# REMOVE 'urgency' column for now. Will focus on setting up pipeline for category classification first #############################################
 
 # Create a validation set
@@ -66,7 +67,7 @@ def tokenize_dataset(dataset):
 # Tokenize the datasets
 dataset['train'] = dataset['train'].map(tokenize_dataset, batched=False)
 dataset['validation'] = dataset['validation'].map(tokenize_dataset, batched=False)
-dataset['test'] = dataset['test'].map(tokenize_dataset, batched=False)
+# dataset['test'] = dataset['test'].map(tokenize_dataset, batched=False)
 
 # Create a data collator
 data_collator = DataCollatorWithPadding(tokenizer)
@@ -121,5 +122,36 @@ trainer = Trainer(model=model,
                   compute_metrics=compute_metrics
                   )
 
+# Set MLFlow tracking
+mlflow.set_tracking_uri('http://experiment_tracking:5000')
+mlflow.set_experiment("Category Classifier Training")
+
 # Train the model
-trainer.train()
+with mlflow.start_run() as run:
+    trainer.train()
+
+# Create a pipeline for inference
+tuned_pipeline = pipeline(
+    task='text-classification',
+    model=trainer.model,
+    batch_size=4,
+    tokenizer=tokenizer,
+    device_map='auto',
+)
+
+# Perform a quick validation check
+quick_check = ("Thank you for applying to the LA Galaxy, Associate Data Scientist position. Before we move forward with your application, please review the below job requirements and confirm the following: Work Authorization Are you currently authorized to work in the United States? Yes or No Will you now or in the future require employment visa sponsorship to work in the United States? Yes or No -If you selected Yes to requiring visa sponsorship now or in the future, could you please share the approximate timeframe in which you anticipate needing employment visa sponsorship? Thank you, and we look forward to reviewing your response. ")
+tuned_pipeline(quick_check)
+
+# Configure the model and provide sample inputs for MLFlow
+model_config = {"batch_size": 8}
+sample_input = ["Your account, your data. We've finished creating a copy of the Google data you requested on March 12, 2026. You can download your files until March 19, 2026."]
+
+# Log the model to MLFlow
+with mlflow.start_run(run_id=run.info.run_id):
+    model_info = mlflow.transformers.log_model(
+        transformers_model=tuned_pipeline,
+        name="fine_tuned",
+        input_example=(sample_input, model_config),
+        model_config=model_config
+    )

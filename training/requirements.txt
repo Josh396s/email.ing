@@ -14,7 +14,7 @@ mailbox
 # Parsing data
 beautifulsoup4
 
-# Pre-trained Models
+# Model Training
 huggingface_hub
 datasets
 evaluate  
@@ -24,6 +24,9 @@ accelerate>=1.1.0
 
 # PEFT
 peft
+
+# Experiment Tracking
+mlflow
 
 # PII Masking
 presidio-analyzer

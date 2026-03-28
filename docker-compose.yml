@@ -66,6 +66,7 @@ services:
     build: 
       context: ./training
     container_name: training
+    profiles: ["training"]
     ports:
       - "8888:8888"
     volumes:
@@ -74,12 +75,24 @@ services:
     environment:
       - JUPYTER_ENABLE_LAB=yes
       - PYTHONPATH=/backend
+      - MLFLOW_TRACKING_URI=http://experiment_tracking:5000
+    depends_on:
+      - experiment_tracking
     env_file:
       - .env
-    depends_on:
-      - db
     command: start-notebook.sh --ServerApp.token='' --ServerApp.password=''
+  
+  experiment_tracking:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: experiment_tracking
+    profiles: ["training"]
+    ports:
+      - "5000:5000"
+    volumes:
+      - experiment_tracking_data:/root/data
+    command: mlflow server --allowed-hosts "*" --backend-store-uri sqlite:////root/data/mlflow.db --port 5000 --host 0.0.0.0
 
 volumes:
   postgres_data:
   ollama_data:
+  experiment_tracking_data:
